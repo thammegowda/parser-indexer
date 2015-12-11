@@ -1,0 +1,15 @@
+{
+  "overrides" :{
+    "id" : "id"
+  },
+
+  "typeSuffix" : {
+    "java.lang.String" : "_t",
+    "java.lang.Integer" : "_i",
+    "java.lang.Long" : "_l",
+    "java.lang.Boolean" : "_b",
+    "java.lang.Float" : "_f",
+    "java.lang.Double" : "_d"
+  },
+  "multiValSuffix" : "s"
+}

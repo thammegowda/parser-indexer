@@ -1,0 +1,96 @@
+Step By Step guide for running the commands
+============================================
+
+This document explains the steps to follow for CSCI572 Assignment 2.
+These steps are written to satisfy http://sunset.usc.edu/classes/cs572_2015b/CS572_HW_SOLR_WEAPONS.pdf
+
+1 Setup Solr :
+-------------
+   use `conf/schema.xml` and create 2 different solr cores.
+   Call it 'collection1' and 'collection2'
+   'collection1' will be used for importing directly from nutch.
+   'collection2' will be used for reparsing and computing pageranks
+
+2. Run nutch import
+------------------
+  This step uses nutch indexer to index content to 'collection1' solr core.
+   In $NUTCH_HOME/conf/nutch-site.xml
+    2a) Enable 'indexer-solr' plugin
+    2b) configure solr url to point to 'collection1'
+    2c) Enable additional plugins : index-(basic|more|anchor|geoip|static|metadata)
+
+
+    And then index everything for by running the below command.
+     'bin/nutch index crawldb -dir segment'
+
+3. Run phase1 parser + indexer
+-----------------------------
+  This step parses metadata of crawled resources and sends them to collection2.
+  If not already, build this(nutch-tika-solr) java project and get the nutch-tika-solr.jar.
+  Please refer README.md file for the Setup instructions.
+
+  Then run the below command :
+    java -jar nutch-tika-solr.jar index -segs data/paths-all.txt -url http://localhost:8983/solr/collection2
+
+  Note that the 'data/paths-all.txt' file should contain paths to all the crawl segments.
+  The 'collection2' created in step 1 is pointed by http://localhost:8983/solr/collection2
+
+
+4. Run phase 2 parser :
+----------------------
+    This step reparses and merges two collections
+    and enriches with named entities by reparsing the textual content and dates.
+
+  Run the below command :
+    java -jar nutch-tika-solr-1.0-SNAPSHOT.jar phase2parse \
+            -src http://localhost:8983/solr/collection1 \
+            -dest http://localhost:8983/solr/collection2 \
+
+
+5. Generate Graph edges:
+------------------------
+    This step creates a text file containing list of edges.
+    Each line in the file will have 'URL1\tURL2' to indicate edge between two URLS
+
+    Run the below command:
+
+      java -jar nutch-tika-solr-1.0-SNAPSHOT.jar graph \
+        -solr http://localhost:8983/solr/collection2 -out locations.txt -edge locations
+
+      Note that similar graphs can be constructed by changing '-edge' argument
+
+6. Compute Page rank
+--------------------
+      This step takes graph generated from previous step (Step 5)
+       and then computes pagerank for each vertex (URL)
+
+   Run the below command:
+      java -jar nutch-tika-solr-1.0-SNAPSHOT.jar pagerank \
+              -edges locations.txt -n 5 -out pr-locations.txt
+
+7. Update  pageranks of documents
+----------------------------------
+    This command takes pageranks computed in step 6 and updates it to documents.
+
+    Run the below command :
+      java -jar nutch-tika-solr-1.0-SNAPSHOT.jar updaterank \
+          -ranks pr-locations.txt -field location_pr \
+          -solr http://localhost:8983/solr/collection2
+
+ 8. Repeat Step 5, 6, and 7 for date graph.
+ -------------------------------------------
+    # dates edges
+    java -jar nutch-tika-solr-1.0-SNAPSHOT.jar graph \
+            -solr http://localhost:8983/solr/collection2 -out dates.txt -edge dates
+
+    # dates page ranks
+    java -jar nutch-tika-solr-1.0-SNAPSHOT.jar pagerank \
+                  -edges dates.txt -n 5 -out pr-dates.txt
+    # post ranks
+    java -jar nutch-tika-solr-1.0-SNAPSHOT.jar updaterank \
+              -ranks pr-dates.txt -field date_pr \
+              -solr http://localhost:8983/solr/collection2
+
+    NOTE: similarly, if pageranks for persons and organizations are required, repeat
+        these steps for 'persons', 'organizations' edges. These respective fields in
+         schema for storing these ranks are 'person_pr' and 'organization_pr'.
