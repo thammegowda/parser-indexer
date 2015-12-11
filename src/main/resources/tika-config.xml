@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+
+    <mimeTypeRepository resource="/org/apache/tika/mime/tika-mimetypes.xml" magic="false"/>
+
+    <parsers>
+        <!--
+        <parser class="org.apache.tika.parser.DefaultParser">
+            < ! - - <parser-exclude class="org.apache.tika.parser.ocr.TesseractOCRParser"/>
+             <parser-exclude class="org.apache.tika.parser.executable.ExecutableParser"/>
+             - - >
+        </parser>
+        -->
+
+        <parser class="org.apache.tika.parser.geo.topic.GeoParser">
+            <mime>text/plain</mime>
+            <mime>text/html</mime>
+            <mime>text/x-php</mime>
+            <mime>text/x-jsp</mime>
+            <mime>text/x-matlab</mime>
+            <mime>application/atom+xml</mime>
+            <mime>application/xhtml+xml</mime>
+            <mime>application/xml</mime>
+            <mime>application/rss+xml</mime>
+            <mime>application/pdf</mime>
+            <mime>application/atom+xml</mime>
+            <mime>application/msword</mime>
+            <mime>text/asp</mime>
+        </parser>
+
+        <parser class="org.apache.tika.parser.ner.NamedEntityParser">
+            <mime>text/plain</mime>
+            <mime>text/html</mime>
+            <mime>text/x-php</mime>
+            <mime>text/x-jsp</mime>
+            <mime>text/x-matlab</mime>
+            <mime>application/atom+xml</mime>
+            <mime>application/xhtml+xml</mime>
+            <mime>application/xml</mime>
+            <mime>application/rss+xml</mime>
+            <mime>application/pdf</mime>
+            <mime>application/atom+xml</mime>
+            <mime>application/msword</mime>
+            <mime>text/asp</mime>
+        </parser>
+
+    </parsers>
+</properties>

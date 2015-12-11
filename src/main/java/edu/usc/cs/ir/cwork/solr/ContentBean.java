@@ -44,6 +44,11 @@ public class ContentBean {
     @Field
     private Set<Date> dates;
 
+    @Field private Set<String> cities;
+    @Field private Set<String> states;
+    @Field private Set<String> countries;
+    @Field private Set<String> geoCoords;
+
     @Field
     private String host;
 
@@ -134,4 +139,37 @@ public class ContentBean {
     public void setDates(Set<Date> dates) {
         this.dates = dates;
     }
+
+    public Set<String> getCities() {
+        return cities;
+    }
+
+    public void setCities(Set<String> cities) {
+        this.cities = cities;
+    }
+
+    public Set<String> getStates() {
+        return states;
+    }
+
+    public void setStates(Set<String> states) {
+        this.states = states;
+    }
+
+    public Set<String> getCountries() {
+        return countries;
+    }
+
+    public void setCountries(Set<String> countries) {
+        this.countries = countries;
+    }
+
+    public Set<String> getGeoCoords() {
+        return geoCoords;
+    }
+
+    public void setGeoCoords(Set<String> geoCoords) {
+        this.geoCoords = geoCoords;
+    }
 }
+

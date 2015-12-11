@@ -4,14 +4,15 @@
         <!-- Default Parser for most things, except for 2 mime types, and never
              use the Executable Parser -->
         <parser class="org.apache.tika.parser.DefaultParser">
-            <!--<mime-exclude>image/jpeg</mime-exclude>
-            <mime-exclude>application/pdf</mime-exclude>-->
-           <!-- <parser-exclude class="org.apache.tika.parser.ocr.TesseractOCRParser"/>-->
+           <!-- <parser-exclude class="org.apache.tika.parser.ocr.TesseractOCRParser"/>
             <parser-exclude class="org.apache.tika.parser.executable.ExecutableParser"/>
+            -->
         </parser>
 
 
-        <parsers>
+
+
+        <!--<parsers>
             <parser class="org.apache.tika.parser.ctakes.CTAKESParser">
                 <mime>text/plain</mime>
                 <mime>text/html</mime>
@@ -28,7 +29,7 @@
                 <mime>text/asp</mime>
                 <parser class="org.apache.tika.parser.DefaultParser"/>
             </parser>
-        </parsers>
+        </parsers>-->
 
     </parsers>
 </properties>

@@ -2,6 +2,8 @@ package edu.usc.cs.ir.cwork.tika;
 
 import com.esotericsoftware.minlog.Log;
 import com.joestelmach.natty.DateGroup;
+import edu.usc.cs.ir.cwork.solr.ContentBean;
+import edu.usc.cs.ir.cwork.solr.schema.FieldMapper;
 import edu.usc.cs.ir.tika.ner.corenlp.CoreNLPNERecogniser;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.util.Pair;
@@ -10,21 +12,24 @@ import org.apache.nutch.protocol.Content;
 import org.apache.tika.Tika;
 import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.ner.NamedEntityParser;
 import org.apache.tika.parser.ner.regex.RegexNERecogniser;
+import org.apache.tika.sax.BodyContentHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xml.sax.SAXException;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
+import static edu.usc.cs.ir.cwork.solr.SolrIndexer.MD_SUFFIX;
+import static edu.usc.cs.ir.cwork.solr.SolrIndexer.asSet;
+import static org.apache.tika.parser.ner.NERecogniser.*;
 
 /**
  * Created by tg on 10/25/15.
@@ -35,12 +40,16 @@ public class Parser {
     public final Logger LOG = LoggerFactory.getLogger(Parser.class);
     public static final String PHASE1_CONF = "tika-config-phase1.xml";
     public static final String PHASE2_CONF = "tika-config-phase2.xml";
+    public static final String DEFAULT_CONF = "tika-config.xml";
     private static final com.joestelmach.natty.Parser NATTY_PARSER =
             new com.joestelmach.natty.Parser();
     private static Parser PHASE1;
-
     private static Parser PHASE2;
+    private static Parser INSTANCE;
     private Tika tika;
+    private Tika defaultTika = new Tika();
+
+    private FieldMapper mapper = FieldMapper.create();
 
     public Parser(InputStream configStream) {
         try {
@@ -72,6 +81,21 @@ public class Parser {
             }
         }
         return PHASE2;
+    }
+
+    public static Parser getInstance(){
+        if (INSTANCE == null) {
+            synchronized (Parser.class) {
+                if (INSTANCE == null) {
+                    String nerImpls = CoreNLPNERecogniser.class.getName()
+                            + "," + RegexNERecogniser.class.getName();
+                    System.setProperty(NamedEntityParser.SYS_PROP_NER_IMPL, nerImpls);
+                    INSTANCE = new Parser(Parser.class.getClassLoader()
+                            .getResourceAsStream(DEFAULT_CONF));
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     /**
@@ -113,6 +137,14 @@ public class Parser {
             IOUtils.closeQuietly(stream);
         }
     }
+
+    public Pair<String, Metadata> parse(File file) throws IOException, TikaException {
+        Metadata md = new Metadata();
+        try (InputStream in = TikaInputStream.get(file.toPath(), md)){
+            return new Pair<>(tika.parseToString(in), md);
+        }
+    }
+
 
     /**
      * Parses the stream to read text content and metadata
@@ -192,10 +224,83 @@ public class Parser {
         return filterDates(result);
     }
 
-    public static void main(String[] args) {
 
-        Set<Date> dates = parseDates("August 1st 2015", "February",
-                "February 2015", "15th february 2016");
-        System.out.println(dates);
+    /**
+     * Creates Solrj Bean from file
+     *
+     * @param file the nutch content
+     * @return Solrj Bean
+     */
+    public ContentBean loadMetadataBean(File file, ContentBean bean) throws IOException, TikaException {
+
+        bean.setUrl(file.toURI().toURL().toExternalForm());
+        Map<String, Object> mdFields = new HashMap<>();
+        bean.setContent(defaultTika.parseToString(file));
+        Metadata md = new Metadata();
+        tika.parse(file, md);
+        try {
+            for (String name : md.names()) {
+                boolean special = false;
+                if (name.startsWith("NER_"))  {
+                    special = true; //could be special
+                    String nameType = name.substring("NER_".length());
+                    if (DATE.equals(nameType)) {
+                        Set<Date> dates = parseDates(md.getValues(name));
+                        bean.setDates(dates);
+                    } else if (PERSON.equals(nameType)){
+                        bean.setPersons(asSet(md.getValues(name)));
+                    } else if (ORGANIZATION.equals(nameType)) {
+                        bean.setOrganizations(asSet(md.getValues(name)));
+                    } else if (LOCATION.equals(nameType)) {
+                        Set<String> locations = asSet(md.getValues(name));
+                        bean.setLocations(locations);
+                        enrichGeoFields(locations, bean);
+                    } else {
+                        //no special casing this field!!
+                        special = false;
+                    }
+                } else if ("Content-Type".equals(name)) {
+                    bean.setContentType(md.get(name));
+                }
+
+                if (!special) {
+                    mdFields.put(name, md.isMultiValued(name)
+                            ? md.getValues(name) : md.get(name));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        Map<String, Object> mappedMdFields = mapper.mapFields(mdFields, true);
+        Map<String, Object> suffixedFields = new HashMap<>();
+        mappedMdFields.forEach((k, v) -> {
+            if (!k.endsWith(MD_SUFFIX)) {
+                k += MD_SUFFIX;
+            }
+            suffixedFields.put(k, v);
+        });
+        bean.setMetadata(suffixedFields);
+        return bean;
+    }
+
+    public void enrichGeoFields(Set<String> locationNames, ContentBean bean) {
+        //TODO: take advantage of newer geo parser to get city, country, state etc
+    }
+
+
+    public static void main(String[] args) throws IOException, TikaException, SAXException {
+
+        BodyContentHandler handler = new BodyContentHandler();
+        Metadata md = new Metadata();
+        //getInstance().tika.getParser().parse(new FileInputStream("a.html"), handler, md, new ParseContext());
+        File f = new File("a.html");
+        String s = getInstance().tika.parseToString(f);
+
+        System.out.println(s);
+        Tika tika = new Tika();
+
+        //System.out.println(this.tika.parseToString(f));
+
     }
 }

@@ -43,6 +43,7 @@ This project offers sub commands.
          graph :  Builds a graph of documents, and writes the edges set to file
       pagerank :  Computes page rank for nodes in graph
       phase2parse :  Pharses the text content for NER and updates index
+        postdump :  Parse the file dump  and post 'em to solr 
       updaterank :  Updates Page rank
   ```
 
