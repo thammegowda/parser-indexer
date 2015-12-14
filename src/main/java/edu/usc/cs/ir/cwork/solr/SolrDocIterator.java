@@ -13,22 +13,23 @@ import org.slf4j.LoggerFactory;
 import java.util.Iterator;
 
 /**
- * Created by tg on 11/5/15.
+ * This iterator iterates over all the pages of solr results.
+ * @since 6.0
  */
 public class SolrDocIterator implements Iterator<SolrDocument> {
 
     public static final Logger LOG = LoggerFactory.getLogger(SolrDocIterator.class);
     public static final int DEF_START = 0;
     public static final int DEF_ROWS = 1000;
-    private SolrServer solr;
 
+    private long count = 0;
+    private long limit = Long.MAX_VALUE;
+    private SolrServer solr;
     private SolrQuery query;
     private long numFound;
     private int nextStart;
     private Iterator<SolrDocument> curPage;
     private SolrDocument next;
-    private long count = 0;
-    private long limit = Long.MAX_VALUE;
 
     public SolrDocIterator(String solrUrl, String queryStr, int start, int rows,
                            String...fields){
@@ -39,7 +40,7 @@ public class SolrDocIterator implements Iterator<SolrDocument> {
         this(solr, queryStr, DEF_START, DEF_ROWS, fields);
     }
 
-        public SolrDocIterator(SolrServer solr, String queryStr, int start, int rows,
+    public SolrDocIterator(SolrServer solr, String queryStr, int start, int rows,
                            String...fields){
         this.solr = solr;
         this.nextStart = start;
@@ -48,9 +49,6 @@ public class SolrDocIterator implements Iterator<SolrDocument> {
         if (fields.length > 0) {
             this.query.setFields(fields);
         }
-        this.numFound = start + 1;
-
-        //lets assume at least one more doc left, so the next page call wil happen
         this.next = getNext(true);
         this.count = 1;
     }
@@ -66,7 +64,6 @@ public class SolrDocIterator implements Iterator<SolrDocument> {
     public int getNextStart() {
         return nextStart;
     }
-
 
     public void setLimit(long limit) {
         this.limit = limit;
