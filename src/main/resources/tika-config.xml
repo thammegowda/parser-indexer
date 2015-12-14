@@ -35,5 +35,11 @@
             <mime>text/asp</mime>
         </parser>
 
+        <parser class="org.apache.tika.parser.external.CompositeExternalParser">
+            <mime>image/jpeg</mime>
+            <mime>image/png</mime>
+            <mime>video/mp4</mime>
+        </parser>
+
     </parsers>
 </properties>
