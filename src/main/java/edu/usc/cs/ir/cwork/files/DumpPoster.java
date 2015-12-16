@@ -2,6 +2,7 @@ package edu.usc.cs.ir.cwork.files;
 
 import edu.usc.cs.ir.cwork.solr.ContentBean;
 import edu.usc.cs.ir.cwork.tika.Parser;
+import edu.usc.cs.ir.cwork.util.FileIterator;
 import edu.usc.cs.ir.cwork.util.GroupedIterator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.CanReadFileFilter;
@@ -77,12 +78,7 @@ public class DumpPoster implements Runnable {
             throw new IllegalArgumentException(file + " doesnt exists");
         }
 
-        Iterator<File> files;
-        if (file.isFile()) {
-            files = Collections.singletonList(file).iterator();
-        } else {
-            files = FileUtils.iterateFiles(file, CanReadFileFilter.CAN_READ, CanReadFileFilter.CAN_READ);
-        }
+        Iterator<File> files = new FileIterator(file);
 
         long st = System.currentTimeMillis();
         long count = 0;
@@ -90,7 +86,6 @@ public class DumpPoster implements Runnable {
 
         HttpSolrServer destSolr = new HttpSolrServer(this.solrUrl.toString());
         destSolr.setConnectionTimeout(5*1000);
-
 
         GroupedIterator<File> groupedDocs = new GroupedIterator<>(files, nThreads);
         List<Future<ContentBean>> futures = new ArrayList<>(nThreads);
