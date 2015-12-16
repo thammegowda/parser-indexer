@@ -48,20 +48,19 @@ public class DumpPoster implements Runnable {
     /**
      * task for parsing docs
      */
-    private class ParseTask implements Callable<Boolean> {
+    private class ParseTask implements Callable<ContentBean> {
 
         private File inDoc;
-        private ContentBean outDoc;
 
-        public ParseTask(File inDoc, ContentBean doc) {
+        public ParseTask(File inDoc) {
             this.inDoc = inDoc;
-            this.outDoc = doc;
         }
 
         @Override
-        public Boolean call() throws Exception {
+        public ContentBean call() throws Exception {
+            ContentBean outDoc = new ContentBean();
             Parser.getInstance().loadMetadataBean(inDoc, outDoc);
-            return true;
+            return outDoc;
         }
     }
 
@@ -94,26 +93,26 @@ public class DumpPoster implements Runnable {
 
 
         GroupedIterator<File> groupedDocs = new GroupedIterator<>(files, nThreads);
-        List<Future<Boolean>> futures = new ArrayList<>(nThreads);
+        List<Future<ContentBean>> futures = new ArrayList<>(nThreads);
         List<ContentBean> buffer = new ArrayList<>();
         while (groupedDocs.hasNext()) {
             try {
                 List<File> group = groupedDocs.next();
                 futures.clear();
                 for (File doc : group) {
-                    ContentBean bean = new ContentBean();
-                    buffer.add(bean);
-                    ParseTask task = new ParseTask(doc, bean);
-                    Future<Boolean> future = getExecutors().submit(task);
+                    ParseTask task = new ParseTask(doc);
+                    Future<ContentBean> future = getExecutors().submit(task);
                     futures.add(future);
                     count++;
                 }
 
                 // collect results
-                for (Future<Boolean> future : futures) {
+                for (Future<ContentBean> future : futures) {
                     try {
-
-                        Boolean result = future.get(threadTimeout, TimeUnit.MILLISECONDS);
+                        ContentBean result = future.get(threadTimeout, TimeUnit.MILLISECONDS);
+                        if (result != null) {
+                            buffer.add(result);
+                        }
                     } catch (InterruptedException | ExecutionException e) {
                         LOG.error(e.getMessage());
                     } catch (TimeoutException e) {
