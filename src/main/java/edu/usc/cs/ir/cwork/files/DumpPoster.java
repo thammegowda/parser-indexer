@@ -5,7 +5,7 @@ import edu.usc.cs.ir.cwork.tika.Parser;
 import edu.usc.cs.ir.cwork.util.FileIterator;
 import edu.usc.cs.ir.cwork.util.GroupedIterator;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.filefilter.CanReadFileFilter;
+import org.apache.commons.io.LineIterator;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.kohsuke.args4j.CmdLineException;
@@ -15,12 +15,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Created by tg on 12/11/15.
@@ -29,8 +35,12 @@ public class DumpPoster implements Runnable {
 
     public static final Logger LOG = LoggerFactory.getLogger(DumpPoster.class);
 
-    @Option(name = "-in", usage = "Path to Files that are to be parsed and indexed", required = true)
+    @Option(name = "-in", usage = "Path to Files that are to be parsed and indexed", forbids = "-list")
     private File file;
+
+    @Option(name = "-list", usage = "Path Containing List of files to be processed", forbids = "-n")
+    private File listFile;
+
 
     @Option(name = "-solr", usage = "Solr URL", required = true)
     private URL solrUrl;
@@ -74,12 +84,8 @@ public class DumpPoster implements Runnable {
 
     @Override
     public void run() {
-        if (!file.exists()) {
-            throw new IllegalArgumentException(file + " doesnt exists");
-        }
 
-        Iterator<File> files = new FileIterator(file);
-
+        Iterator<File> files = getInputFiles();
         long st = System.currentTimeMillis();
         long count = 0;
         long delay = 2 * 1000;
@@ -108,8 +114,10 @@ public class DumpPoster implements Runnable {
                         if (result != null) {
                             buffer.add(result);
                         }
-                    } catch (InterruptedException | ExecutionException e) {
+                    } catch (InterruptedException e) {
                         LOG.error(e.getMessage());
+                    } catch ( ExecutionException e) {
+                        LOG.error(e.getMessage(), e);
                     } catch (TimeoutException e) {
                         // didnt finish
                         future.cancel(true);
@@ -123,7 +131,8 @@ public class DumpPoster implements Runnable {
                 }
 
                 if (System.currentTimeMillis() - st > delay) {
-                    LOG.info("Num Docs : {}", count);
+                    String lastPath = group.isEmpty() ? "EMPTY" : group.get(group.size() - 1).getPath();
+                    LOG.info("Num Docs : {}, Last file: {}", count, lastPath);
                     st = System.currentTimeMillis();
                 }
             } catch (Exception e){
@@ -153,15 +162,52 @@ public class DumpPoster implements Runnable {
         }
     }
 
+    private Iterator<File> getInputFiles() {
+        if (file != null) {
+            if (!file.exists()) {
+                throw new IllegalArgumentException(file + " doesnt exists");
+            }
+            return new FileIterator(file);
+        } else if (listFile != null ) {
+            if (!listFile.exists()) {
+                throw new IllegalArgumentException(listFile + " doesnt exists");
+            }
+            try {
+                LineIterator iterator = FileUtils.lineIterator(listFile);
+
+            return new Iterator<File>() {
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public File next() {
+                    return new File(iterator.next());
+                }
+            };
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new IllegalStateException("Error : file list or directory should be given");
+        }
+    }
+
     public static void main(String[] args) {
-        //args = "-solr http://localhost:8983/solr/collection3 -in /home/tg/tmp".split(" ");
+        //args = "-solr http://localhost:8983/solr/collection3 -in /home/tg/tmp/committer-index.html -batch 10".split(" ");
 
         DumpPoster poster = new DumpPoster();
         CmdLineParser parser = new CmdLineParser(poster);
         try {
             parser.parseArgument(args);
+            if (poster.file == null && poster.listFile == null) {
+                throw new CmdLineException(parser, "Either -in or -list is required");
+            }
         } catch (CmdLineException e) {
+            System.out.println(e.getMessage());
             parser.printUsage(System.out);
+            return;
         }
         poster.run();
     }
