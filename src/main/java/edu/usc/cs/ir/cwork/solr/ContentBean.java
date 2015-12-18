@@ -47,7 +47,7 @@ public class ContentBean {
     @Field private Set<String> cities;
     @Field private Set<String> states;
     @Field private Set<String> countries;
-    @Field private Set<String> geoCoords;
+    @Field("location_geos") private Set<String> geoCoords;
 
     @Field
     private String host;
