@@ -1,6 +1,7 @@
 package edu.usc.cs.ir.cwork.tika;
 
 import com.esotericsoftware.minlog.Log;
+import com.google.gson.GsonBuilder;
 import com.joestelmach.natty.DateGroup;
 import edu.usc.cs.ir.cwork.solr.ContentBean;
 import edu.usc.cs.ir.cwork.solr.schema.FieldMapper;
@@ -12,25 +13,40 @@ import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.geo.topic.gazetteer.GeoGazetteerClient;
+import org.apache.tika.parser.geo.topic.gazetteer.Location;
 import org.apache.tika.parser.ner.NamedEntityParser;
 import org.apache.tika.parser.ner.corenlp.CoreNLPNERecogniser;
 import org.apache.tika.parser.ner.regex.RegexNERecogniser;
-import org.apache.tika.sax.BodyContentHandler;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static edu.usc.cs.ir.cwork.solr.SolrIndexer.MD_SUFFIX;
 import static edu.usc.cs.ir.cwork.solr.SolrIndexer.asSet;
-import static org.apache.tika.parser.ner.NERecogniser.*;
+import static org.apache.tika.parser.ner.NERecogniser.DATE;
+import static org.apache.tika.parser.ner.NERecogniser.LOCATION;
+import static org.apache.tika.parser.ner.NERecogniser.ORGANIZATION;
+import static org.apache.tika.parser.ner.NERecogniser.PERSON;
 
 /**
  * Created by tg on 10/25/15.
@@ -48,7 +64,8 @@ public class Parser {
     private static Parser PHASE2;
     private static Parser INSTANCE;
     private Tika tika;
-    private Tika defaultTika = new Tika();
+    private GeoGazetteerClient geoClient;
+    private boolean debug = false;
 
     private FieldMapper mapper = FieldMapper.create();
 
@@ -56,6 +73,9 @@ public class Parser {
         try {
             TikaConfig config = new TikaConfig(configStream);
             tika = new Tika(config);
+            String apiUrl = System.getProperty("gazetter.rest.api", "http://localhost:8765");
+            geoClient =  new GeoGazetteerClient(apiUrl);
+            LOG.info("Geo API available? {}", geoClient.checkAvail());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -236,9 +256,17 @@ public class Parser {
 
         bean.setUrl(file.toURI().toURL().toExternalForm());
         Map<String, Object> mdFields = new HashMap<>();
-        bean.setContent(defaultTika.parseToString(file));
         Metadata md = new Metadata();
-        tika.parse(file, md);
+        try (TikaInputStream stream = TikaInputStream.get(file.toPath(), md)) {
+            String content = tika.parseToString(stream, md);
+            bean.setContent(content);
+        }
+        if (debug) {
+            LOG.info("Meta from Tika for {}", file.toPath());
+            for (String name : md.names()) {
+                LOG.info("{}: {}", name, Arrays.toString(md.getValues(name)));
+            }
+        }
         try {
             for (String name : md.names()) {
                 boolean special = false;
@@ -286,22 +314,76 @@ public class Parser {
     }
 
     public void enrichGeoFields(Set<String> locationNames, ContentBean bean) {
-        //TODO: take advantage of newer geo parser to get city, country, state etc
+        try {
+
+            if (bean.getCities() == null) {
+                bean.setCities(new HashSet<>());
+            }
+            if (bean.getCountries() == null) {
+                bean.setCountries(new HashSet<>());
+            }
+            if (bean.getStates() == null) {
+                bean.setStates(new HashSet<>());
+            }
+            if (bean.getGeoCoords() == null) {
+                bean.setGeoCoords(new HashSet<>());
+            }
+            Map<String, List<Location>> locations = geoClient.getLocations(new ArrayList<>(locationNames));
+
+            for (Map.Entry<String, List<Location>> e1 : locations.entrySet()) {
+                for (Location l : e1.getValue()) {
+                    bean.getCountries().add(l.getCountryCode());
+                    bean.getGeoCoords().add(l.getLatitude() + "," + l.getLongitude());
+                    if (l.getAdmin1Code() != null
+                            && !l.getAdmin1Code().trim().isEmpty()
+                            && !l.getAdmin1Code().equals("00")) {
+                        bean.getStates().add(l.getAdmin1Code());
+                    }
+                    if (l.getAdmin2Code() != null
+                            && !l.getAdmin2Code().trim().isEmpty()
+                            && !l.getAdmin2Code().equals("00")) {
+                        bean.getCities().add(l.getName());
+                    }
+                }
+            }
+        } catch (Exception e) {
+          LOG.error(e.getMessage(), e);
+        }
     }
 
 
+    private static class CliArgs {
+
+        @Option(name = "-conf", usage = "Tika config file. When not specified, default one will be used")
+        public File confFile;
+
+        @Option(name = "-in", usage = "Input file", required = true)
+        public File inputFile;
+    }
+
     public static void main(String[] args) throws IOException, TikaException, SAXException {
+        CliArgs cliArg = new CliArgs();
+        CmdLineParser cliParser = new CmdLineParser(cliArg);
+        try {
+            cliParser.parseArgument(args);
+        } catch (CmdLineException e) {
+            System.err.println(e.getMessage());
+            e.getParser().printUsage(System.err);
+            System.exit(1);
+        }
+        ContentBean bean = new ContentBean();
+        Parser parser;
+        if (cliArg.confFile == null ) {
+            System.out.println("Using the default conf");
+            parser = getInstance();
+        } else {
+            System.out.println("Using conf from : " + cliArg.confFile);
+            parser = new Parser(new FileInputStream(cliArg.confFile));
+        }
+        parser.debug = true;
 
-        BodyContentHandler handler = new BodyContentHandler();
-        Metadata md = new Metadata();
-        //getInstance().tika.getParser().parse(new FileInputStream("a.html"), handler, md, new ParseContext());
-        File f = new File("a.html");
-        String s = getInstance().tika.parseToString(f);
-
-        System.out.println(s);
-        Tika tika = new Tika();
-
-        //System.out.println(this.tika.parseToString(f));
-
+        parser.loadMetadataBean(cliArg.inputFile, bean);
+        String str = new GsonBuilder().setPrettyPrinting().create().toJson(bean);
+        System.out.println(str);
     }
 }

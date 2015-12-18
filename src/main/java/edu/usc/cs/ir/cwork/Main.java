@@ -6,6 +6,7 @@ import edu.usc.cs.ir.cwork.relevance.SparkPageRanker;
 import edu.usc.cs.ir.cwork.solr.Phase2Indexer;
 import edu.usc.cs.ir.cwork.solr.SolrIndexer;
 import edu.usc.cs.ir.cwork.solr.SolrPageRankUpdater;
+import edu.usc.cs.ir.cwork.tika.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,8 @@ public class Main {
         graph("Builds a graph of documents, and writes the edges set to file ", GraphGenerator.class),
         pagerank("Computes page rank for nodes in graph", SparkPageRanker.class),
         postdump("Parse the file dump  and post 'em to solr ", DumpPoster.class),
-        updaterank("Updates Page rank", SolrPageRankUpdater.class);
+        updaterank("Updates Page rank", SolrPageRankUpdater.class),
+        parsecheck("Checks the parser output (input a config and a file )",Parser.class);
 
         private final String description;
         private final Class<?> clazz;
