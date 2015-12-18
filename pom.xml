@@ -42,6 +42,12 @@
             <version>${tika.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>17.0</version>
+            <!-- otherwise an older incompatible one comes from nutch or hadoop-->
+        </dependency>
+        <dependency>
             <groupId>edu.usc.ir.tika</groupId>
             <artifactId>tika-ner-corenlp</artifactId>
             <version>1.0-SNAPSHOT</version>
@@ -77,6 +83,11 @@
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                    <!-- This old version is incompatible -->
                 </exclusion>
             </exclusions>
         </dependency>
