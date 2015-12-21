@@ -6,8 +6,10 @@ import edu.usc.cs.ir.cwork.util.FileIterator;
 import edu.usc.cs.ir.cwork.util.GroupedIterator;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
 import org.apache.solr.client.solrj.response.UpdateResponse;
+import org.apache.solr.common.SolrException;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -61,16 +63,18 @@ public class DumpPoster implements Runnable {
      */
     private class ParseTask implements Callable<ContentBean> {
 
+        private final Parser parser;
         private File inDoc;
 
-        public ParseTask(File inDoc) {
+        public ParseTask(File inDoc, Parser parser) {
             this.inDoc = inDoc;
+            this.parser = parser;
         }
 
         @Override
         public ContentBean call() throws Exception {
             ContentBean outDoc = new ContentBean();
-            Parser.getInstance().loadMetadataBean(inDoc, outDoc);
+            parser.loadMetadataBean(inDoc, outDoc);
             return outDoc;
         }
     }
@@ -96,12 +100,13 @@ public class DumpPoster implements Runnable {
         GroupedIterator<File> groupedDocs = new GroupedIterator<>(files, nThreads);
         List<Future<ContentBean>> futures = new ArrayList<>(nThreads);
         List<ContentBean> buffer = new ArrayList<>();
+        Parser parser = Parser.getInstance();
         while (groupedDocs.hasNext()) {
             try {
                 List<File> group = groupedDocs.next();
                 futures.clear();
                 for (File doc : group) {
-                    ParseTask task = new ParseTask(doc);
+                    ParseTask task = new ParseTask(doc, parser);
                     Future<ContentBean> future = getExecutors().submit(task);
                     futures.add(future);
                     count++;
@@ -116,7 +121,7 @@ public class DumpPoster implements Runnable {
                         }
                     } catch (InterruptedException e) {
                         LOG.error(e.getMessage());
-                    } catch ( ExecutionException e) {
+                    } catch (ExecutionException e) {
                         LOG.error(e.getMessage(), e);
                     } catch (TimeoutException e) {
                         // didnt finish
@@ -135,6 +140,27 @@ public class DumpPoster implements Runnable {
                     LOG.info("Num Docs : {}, Last file: {}", count, lastPath);
                     st = System.currentTimeMillis();
                 }
+            } catch (SolrException e) {
+                LOG.error(e.getMessage(), e);
+                try {
+                    LOG.warn("Going to sleep for sometime");
+                    Thread.sleep(10000);
+                } catch (InterruptedException e1) {
+                    e1.printStackTrace();
+                }
+                LOG.warn("Woke Up! Going to add docs one by one");
+                int errCount = 0;
+                for (ContentBean bean : buffer) {
+                    try {
+                        destSolr.addBean(bean);
+                    } catch (Exception e1) {
+                        errCount++;
+                        e1.printStackTrace();
+                    }
+                }
+                LOG.info("Clearing the buffer. Errors :{}", errCount);
+                //possibly an error in documents
+                buffer.clear();
             } catch (Exception e){
                 LOG.error(e.getMessage(), e);
                 try {
