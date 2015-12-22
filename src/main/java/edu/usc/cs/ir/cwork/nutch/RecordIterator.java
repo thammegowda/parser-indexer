@@ -77,7 +77,9 @@ public class RecordIterator<T extends Writable> implements Iterator<Pair<String,
         while (paths.hasNext()) {
             try {
                 //open a new reader
-                reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(paths.next()));
+                Path nextPath = paths.next();
+                LOG.info("Reading : {}", nextPath);
+                reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(nextPath));
                 ///read from new reader
                 return getNext();
             } catch (IOException e) {
