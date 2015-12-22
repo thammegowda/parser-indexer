@@ -17,7 +17,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <tika.version>1.12-SNAPSHOT</tika.version>
-        <nutch.version>1.10</nutch.version>
+        <nutch.version>1.11</nutch.version>
         <solr.version>4.10.4</solr.version>
         <junit.version>4.12</junit.version>
         <args4j.version>2.32</args4j.version>
@@ -132,6 +132,13 @@
             <artifactId>spark-core_${scala.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>net.sourceforge.nekohtml</groupId>
+            <artifactId>nekohtml</artifactId>
+            <version>1.9.22</version>
+        </dependency>
+
 
     </dependencies>
     <developers>
