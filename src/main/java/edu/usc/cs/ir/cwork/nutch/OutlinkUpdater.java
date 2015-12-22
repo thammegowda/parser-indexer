@@ -139,7 +139,7 @@ public class OutlinkUpdater implements Runnable {
                     paths.add(pathFunction.apply(new URL(link.getToUrl())));
                 }
                 doc.addField("outurls", links);
-                doc.addField("outliks", paths);
+                doc.addField("outlinks", paths);
                 //FIXME: proper atomic update of solr doc
                 return doc;
             }
