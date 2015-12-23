@@ -160,6 +160,7 @@ public class OutlinkUpdater implements Runnable {
         private SolrInputDocument next;
         private OutlinkUpdater generator;
         private final RecordIterator<Content> input;
+        private boolean skipImages = true;
 
         public SolrDocUpdates(OutlinkUpdater generator) throws IOException, InterruptedException {
             this.generator = generator;
@@ -186,6 +187,12 @@ public class OutlinkUpdater implements Runnable {
             while (input.hasNext()) {
                 try {
                     Pair<String, Content> content = input.next();
+                    if (skipImages && content.getValue().getContentType()
+                            .toLowerCase().startsWith("image")) {
+                        //skip Images
+                        continue;
+                    }
+
                     SolrInputDocument update = generator.getDocUpdate(content.getValue());
                     if (update != null) {
                         return update;
