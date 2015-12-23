@@ -32,6 +32,7 @@ import java.net.URLClassLoader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -129,17 +130,17 @@ public class OutlinkUpdater implements Runnable {
             if (outlinks != null && outlinks.length > 0) {
                 SolrInputDocument doc = new SolrInputDocument();
                 URL url = new URL(content.getUrl());
-                doc.setField("id", pathFunction.apply(url));
-                doc.setField("url", url.toString());
-                doc.setField("host", url.getHost());
+                doc.addField("id", pathFunction.apply(url));
+                doc.addField("url", new HashMap<String, String>(){{put("set", url.toString());}});
+                doc.setField("host", new HashMap<String, String>(){{put("set", url.getHost());}});
                 List<String> links = new ArrayList<>();
                 List<String> paths = new ArrayList<>();
                 for (Outlink link : outlinks) {
                     links.add(link.getToUrl());
                     paths.add(pathFunction.apply(new URL(link.getToUrl())));
                 }
-                doc.addField("outurls", links);
-                doc.addField("outlinks", paths);
+                doc.setField("outurls", new HashMap<String, Object>(){{put("set", links);}});
+                doc.setField("outlinks", new HashMap<String, Object>(){{put("set", paths);}});
                 //FIXME: proper atomic update of solr doc
                 return doc;
             }
