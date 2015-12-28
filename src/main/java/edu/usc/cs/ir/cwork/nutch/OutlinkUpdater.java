@@ -85,7 +85,8 @@ public class OutlinkUpdater implements Runnable {
         reversedURL[0] = reversedURL[0].replace('.', '/');
 
         String reversedURLPath = reversedURL[0] + "/" + DigestUtils.sha256Hex(url.toString()).toUpperCase();
-        return String.format("%s/%s", dumpDir, reversedURLPath);
+        String pathStr = String.format("%s/%s", dumpDir, reversedURLPath);
+        return new File(pathStr).toURI().toString();
     };
 
 
