@@ -141,7 +141,6 @@ public class OutlinkUpdater implements Runnable {
                 }
                 doc.setField("outurls", new HashMap<String, Object>(){{put("set", links);}});
                 doc.setField("outlinks", new HashMap<String, Object>(){{put("set", paths);}});
-                //FIXME: proper atomic update of solr doc
                 return doc;
             }
         } else {
@@ -167,6 +166,9 @@ public class OutlinkUpdater implements Runnable {
             List<String> segments = Files.readLines(generator.segmentListFile, Charset.defaultCharset());
             List<String> parts = findContentParts(segments);
             List<Path> paths = parts.stream().map(Path::new).collect(Collectors.toList());
+
+            System.out.println("Found " + segments.size() + " segments");
+            System.out.println("Found " + paths.size() + " parts");
             input = new RecordIterator<>(paths);
             next = makeNext();
         }
