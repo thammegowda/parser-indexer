@@ -139,8 +139,8 @@ public class OutlinkUpdater implements Runnable {
                     links.add(link.getToUrl());
                     paths.add(pathFunction.apply(new URL(link.getToUrl())));
                 }
-                doc.setField("outurls", new HashMap<String, Object>(){{put("set", links);}});
-                doc.setField("outlinks", new HashMap<String, Object>(){{put("set", paths);}});
+                doc.setField("outlinks", new HashMap<String, Object>(){{put("set", links);}});
+                doc.setField("outpaths", new HashMap<String, Object>(){{put("set", paths);}});
                 return doc;
             }
         } else {
