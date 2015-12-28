@@ -1,6 +1,7 @@
 package edu.usc.cs.ir.cwork;
 
 import edu.usc.cs.ir.cwork.files.DumpPoster;
+import edu.usc.cs.ir.cwork.nutch.OutlinkUpdater;
 import edu.usc.cs.ir.cwork.relevance.GraphGenerator;
 import edu.usc.cs.ir.cwork.relevance.SparkPageRanker;
 import edu.usc.cs.ir.cwork.solr.Phase2Indexer;
@@ -31,6 +32,7 @@ public class Main {
         graph("Builds a graph of documents, and writes the edges set to file ", GraphGenerator.class),
         pagerank("Computes page rank for nodes in graph", SparkPageRanker.class),
         postdump("Parse the file dump  and post 'em to solr ", DumpPoster.class),
+        outlinks("Parse the nutch segments for outlinks and posts 'em to solr", OutlinkUpdater.class),
         updaterank("Updates Page rank", SolrPageRankUpdater.class),
         parsecheck("Checks the parser output (input a config and a file )",Parser.class);
 
