@@ -33,8 +33,10 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -129,6 +131,7 @@ public class OutlinkUpdater implements Runnable {
         if (parsed != null) {
             Outlink[] outlinks = parsed.getData().getOutlinks();
             if (outlinks != null && outlinks.length > 0) {
+
                 SolrInputDocument doc = new SolrInputDocument();
                 URL url = new URL(content.getUrl());
                 doc.addField("id", pathFunction.apply(url));
@@ -136,12 +139,18 @@ public class OutlinkUpdater implements Runnable {
                 doc.setField("host", new HashMap<String, String>(){{put("set", url.getHost());}});
                 List<String> links = new ArrayList<>();
                 List<String> paths = new ArrayList<>();
-                for (Outlink link : outlinks) {
-                    links.add(link.getToUrl());
-                    paths.add(pathFunction.apply(new URL(link.getToUrl())));
+                HashSet<String> uniqOutlinks = new HashSet<>();
+                for (Outlink outlink : outlinks) {
+                    uniqOutlinks.add(outlink.getToUrl());
                 }
-                doc.setField("outlinks", new HashMap<String, Object>(){{put("set", links);}});
-                doc.setField("outpaths", new HashMap<String, Object>(){{put("set", paths);}});
+                for (String link : uniqOutlinks) {
+                    links.add(link);
+                    paths.add(pathFunction.apply(new URL(link)));
+                }
+                doc.setField("outlinks", new HashMap<String, Object>(){{
+                    put("set", links);}});
+                doc.setField("outpaths", new HashMap<String, Object>(){{
+                    put("set", paths);}});
                 return doc;
             }
         } else {
