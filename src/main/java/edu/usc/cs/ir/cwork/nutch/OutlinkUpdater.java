@@ -280,6 +280,21 @@ public class OutlinkUpdater implements Runnable {
                 LOG.info("Num docs : {}", count);
             }
         }
+
+        if (!buffer.isEmpty()) {
+            //process left out docs in buffer
+            try {
+                solr.add(buffer);
+            } catch (SolrServerException | IOException e) {
+                e.printStackTrace();
+            }
+        }
+        try {
+            LOG.info("End || Count:: {}", count);
+            LOG.info("Committing:: {}", solr.commit());
+        } catch (SolrServerException | IOException e) {
+            e.printStackTrace();
+        }
         return count;
     }
 
