@@ -448,7 +448,7 @@
         <!-- fields for index-more plugin -->
         <field name="type" type="string" stored="true" indexed="true" multiValued="true"/>
         <field name="contentLength" type="string" stored="true" indexed="false"/>
-        <field name="lastModified" type="date" stored="true" indexed="false"/>
+        <field name="lastModified" type="date" stored="true" indexed="true"/>
         <field name="date" type="tdate" stored="true" indexed="true"/>
 
         <!-- fields for languageidentifier plugin -->
