@@ -1,11 +1,8 @@
 package edu.usc.cs.ir.cwork.nutch;
 
-import com.google.common.io.Files;
-import org.apache.commons.codec.digest.DigestUtils;
+import edu.usc.cs.ir.cwork.solr.SolrDocUpdates;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.math3.util.Pair;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.nutch.parse.Outlink;
 import org.apache.nutch.parse.Parse;
 import org.apache.nutch.parse.ParseResult;
@@ -13,7 +10,6 @@ import org.apache.nutch.parse.ParseSegment;
 import org.apache.nutch.parse.ParseUtil;
 import org.apache.nutch.protocol.Content;
 import org.apache.nutch.util.NutchConfiguration;
-import org.apache.nutch.util.TableUtil;
 import org.apache.solr.client.solrj.SolrServer;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
@@ -29,7 +25,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,12 +32,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Created by tg on 12/21/15.
  */
-public class OutlinkUpdater implements Runnable {
+public class OutlinkUpdater implements Runnable, Function<Content, SolrInputDocument> {
 
     public static final Logger LOG = LoggerFactory.getLogger(OutlinkUpdater.class);
 
@@ -64,6 +58,7 @@ public class OutlinkUpdater implements Runnable {
     private Configuration nutchConf;
     private ParseUtil parseUtil;
     private SolrServer solrServer;
+    private Function<URL, String> pathFunction;
 
     private void init() throws MalformedURLException {
         //Step 1: Nutch initialization
@@ -78,18 +73,10 @@ public class OutlinkUpdater implements Runnable {
 
         //Step 2: initialize solr
         solrServer = new HttpSolrServer(solrUrl.toString());
+
+        //step 3: path function
+        pathFunction = new NutchDumpPathBuilder(dumpDir);
     }
-
-    public static Function<URL, String> pathFunction = url -> {
-
-        String[] reversedURL = TableUtil.reverseUrl(url).split(":");
-        reversedURL[0] = reversedURL[0].replace('.', '/');
-
-        String reversedURLPath = reversedURL[0] + "/" + DigestUtils.sha256Hex(url.toString()).toUpperCase();
-        String pathStr = String.format("%s/%s", dumpDir, reversedURLPath);
-        return new File(pathStr).toURI().toString();
-    };
-
 
     /**
      * Finds all segment content parts
@@ -118,110 +105,55 @@ public class OutlinkUpdater implements Runnable {
      * @return solr input document
      * @throws Exception when an error happens
      */
-    public SolrInputDocument getDocUpdate(Content content) throws Exception{
+    public SolrInputDocument apply(Content content){
         if (ParseSegment.isTruncated(content)) {
             return null;
         }
-        ParseResult result = parseUtil.parse(content);
-        if (!result.isSuccess()) {
-            return null;
-        }
-        Parse parsed = result.get(content.getUrl());
-        if (parsed != null) {
-            Outlink[] outlinks = parsed.getData().getOutlinks();
-            if (outlinks != null && outlinks.length > 0) {
-
-                SolrInputDocument doc = new SolrInputDocument();
-                URL url = new URL(content.getUrl());
-                doc.addField("id", pathFunction.apply(url));
-                doc.addField("url", new HashMap<String, String>(){{put("set", url.toString());}});
-                doc.setField("host", new HashMap<String, String>(){{put("set", url.getHost());}});
-                List<String> links = new ArrayList<>();
-                List<String> paths = new ArrayList<>();
-                HashSet<String> uniqOutlinks = new HashSet<>();
-                for (Outlink outlink : outlinks) {
-                    uniqOutlinks.add(outlink.getToUrl());
-                }
-                for (String link : uniqOutlinks) {
-                    links.add(link);
-                    paths.add(pathFunction.apply(new URL(link)));
-                }
-                doc.setField("outlinks", new HashMap<String, Object>(){{
-                    put("set", links);}});
-                doc.setField("outpaths", new HashMap<String, Object>(){{
-                    put("set", paths);}});
-                return doc;
+        try {
+            ParseResult result = parseUtil.parse(content);
+            if (!result.isSuccess()) {
+                return null;
             }
-        } else {
-            System.err.println("This shouldn't be happening");
+            Parse parsed = result.get(content.getUrl());
+            if (parsed != null) {
+                Outlink[] outlinks = parsed.getData().getOutlinks();
+                if (outlinks != null && outlinks.length > 0) {
+
+                    SolrInputDocument doc = new SolrInputDocument();
+                    URL url = new URL(content.getUrl());
+                    doc.addField("id", pathFunction.apply(url));
+                    doc.addField("url", new HashMap<String, String>() {{
+                        put("set", url.toString());
+                    }});
+                    doc.setField("host", new HashMap<String, String>() {{
+                        put("set", url.getHost());
+                    }});
+                    List<String> links = new ArrayList<>();
+                    List<String> paths = new ArrayList<>();
+                    HashSet<String> uniqOutlinks = new HashSet<>();
+                    for (Outlink outlink : outlinks) {
+                        uniqOutlinks.add(outlink.getToUrl());
+                    }
+                    for (String link : uniqOutlinks) {
+                        links.add(link);
+                        paths.add(pathFunction.apply(new URL(link)));
+                    }
+                    doc.setField("outlinks", new HashMap<String, Object>() {{
+                        put("set", links);
+                    }});
+                    doc.setField("outpaths", new HashMap<String, Object>() {{
+                        put("set", paths);
+                    }});
+                    return doc;
+                }
+            } else {
+                System.err.println("This shouldn't be happening");
+            }
+        } catch (Exception e){
+            e.printStackTrace();
         }
         return null;
     }
-
-
-    /**
-     * This iterator creates a stream of solr updates by reading the input segment paths
-     */
-    private static class SolrDocUpdates implements Iterator<SolrInputDocument> {
-
-        private static final Logger LOG = LoggerFactory.getLogger(SolrDocUpdates.class);
-        private SolrInputDocument next;
-        private OutlinkUpdater generator;
-        private final RecordIterator<Content> input;
-        private boolean skipImages = true;
-
-        public SolrDocUpdates(OutlinkUpdater generator) throws IOException, InterruptedException {
-            this.generator = generator;
-            List<String> segments = Files.readLines(generator.segmentListFile, Charset.defaultCharset());
-            List<String> parts = findContentParts(segments);
-            List<Path> paths = parts.stream().map(Path::new).collect(Collectors.toList());
-
-            System.out.println("Found " + segments.size() + " segments");
-            System.out.println("Found " + paths.size() + " parts");
-            input = new RecordIterator<>(paths);
-            next = makeNext();
-        }
-
-        @Override
-        public boolean hasNext() {
-            return next != null;
-        }
-
-        @Override
-        public SolrInputDocument next() {
-            SolrInputDocument tmp = next;
-            next = makeNext();
-            return tmp;
-        }
-
-        private SolrInputDocument makeNext() {
-            while (input.hasNext()) {
-                try {
-                    Pair<String, Content> content = input.next();
-                    if (skipImages && content.getValue().getContentType()
-                            .toLowerCase().startsWith("image")) {
-                        //skip Images
-                        continue;
-                    }
-
-                    SolrInputDocument update = generator.getDocUpdate(content.getValue());
-                    if (update != null) {
-                        return update;
-                    }
-                } catch (Exception e) {
-                    LOG.error(e.getMessage(), e);
-                }
-            }
-            //end
-            return null;
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException("Remove not allowed");
-        }
-    }
-
 
     /**
      * Indexes all the documents in the stream to solr
@@ -299,10 +231,10 @@ public class OutlinkUpdater implements Runnable {
 
     @Override
     public void run() {
-
         try {
             this.init();
-            SolrDocUpdates updates = new SolrDocUpdates(this);
+            SolrDocUpdates updates = new SolrDocUpdates(this, this.segmentListFile);
+            updates.setSkipImages(true); //because images wont have outlinks
             indexAll(solrServer, updates, batchSize);
         } catch (Exception e) {
             e.printStackTrace();
