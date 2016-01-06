@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -81,7 +80,7 @@ public class OutlinkUpdater implements Runnable {
         solrServer = new HttpSolrServer(solrUrl.toString());
     }
 
-    private static Function<URL, String> pathFunction = url -> {
+    public static Function<URL, String> pathFunction = url -> {
 
         String[] reversedURL = TableUtil.reverseUrl(url).split(":");
         reversedURL[0] = reversedURL[0].replace('.', '/');
@@ -231,7 +230,7 @@ public class OutlinkUpdater implements Runnable {
      * @param bufferSize buffer size
      * @return number of documents indexed
      */
-    public long indexAll(SolrServer solr,
+    public static long indexAll(SolrServer solr,
                          Iterator<SolrInputDocument> docsStream,
                          int bufferSize) {
         List<SolrInputDocument> buffer = new ArrayList<>(bufferSize);
