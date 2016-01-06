@@ -87,9 +87,7 @@ public class LastModifiedUpdater implements Runnable, Function<Content, SolrInpu
 
         doc.setField("lastModified", new HashMap<String, Object>(){{
             put("set", lastModifiedDate);}});
-
-        doc.setField("dates", new HashMap<String, Object>(){{
-            put("add", lastModifiedDate);}});
+        //copied to dates field using solr copyfield
         return doc;
     }
 
