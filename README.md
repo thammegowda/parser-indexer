@@ -7,7 +7,7 @@ The main theme of this project is building inverted index using `Apache Lucene/S
 using `Apache Nutch` and it is read from segments using `Apache Hadoop-HDFS` API.
 Additional enrichment to documents is made by parsing documents with `Apache Tika`.
 
-NOTE : Visit [Step By Step Guide](./step-by-step.txt) for knowing how to make use of this code.
+NOTE : Visit [Step By Step Guide for homework evaluation](./step-by-step.txt) for knowing how to make use of this code.
 
 
 # Requirements 
@@ -37,14 +37,35 @@ Run `java -jar target/nutch-tika-solr-1.0-SNAPSHOT.jar` command. It will show su
 This project offers sub commands.
 
   ```
-  Usage : Main <CMD>
-  The following command(CMD)s are available
-         index :  Index nutch segments to solr
-         graph :  Builds a graph of documents, and writes the edges set to file
-      pagerank :  Computes page rank for nodes in graph
-      phase2parse :  Pharses the text content for NER and updates index
-        postdump :  Parse the file dump  and post 'em to solr 
-      updaterank :  Updates Page rank
+Usage : Main <CMD>
+The following command(CMD)s are available
+       index :  Index nutch segments to solr
+ phase2parse :  Pharses the text content for NER and updates index
+       graph :  Builds a graph of documents, and writes the edges set to file 
+    pagerank :  Computes page rank for nodes in graph
+    postdump :  Parse the file dump  and post 'em to solr 
+    outlinks :  Parse the nutch segments for outlinks and posts 'em to solr
+lastmodified :  Retrieves last-modified HTTP header value from nutch segments and updates it to Solr
+  updaterank :  Updates Page rank
+  parsecheck :  Checks the parser output (input a config and a file )
+
+  ```
+  
+  + **postdump** command
+
+  This command parses file dump and posts the parsed content to solr.
+
+Usage : 
+  ```
+    java -jar target/nutch-tika-solr-1.0-SNAPSHOT.jar postdump
+  Option "-solr" is required
+   -batch N   : Batch size for buffering solr postings (default: 500)
+   -in FILE   : Path to Files that are to be parsed and indexed
+   -list FILE : Path Containing List of files to be processed
+   -solr URL  : Solr URL
+   -threads N : Number of Threads (default: 5)
+   -timeout N : task timeout. The parser should finish within this time millis
+                (default: 15000)
   ```
 
   + **index** Command
