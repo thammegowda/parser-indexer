@@ -22,6 +22,10 @@ implementation of Named Entity Recogniser based on _StanfordCoreNLP_.  Edit: Its
 + Build Tika CoreNlp addon NLP
   + `git clone git@github.com:thammegowda/tika-ner-corenlp.git`
   + `mvn install`
++ Lucene Geo Gazetteer 
+  The FileDump Poster requires https://github.com/chrismattmann/lucene-geo-gazetteer.
+  + git clone git@github.com:chrismattmann/lucene-geo-gazetteer.git
+  + Follow the instructions in the README and launch the geo gazetteer server on default port
 
 # How to build.
 
