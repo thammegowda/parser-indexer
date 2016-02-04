@@ -38,30 +38,30 @@ public class DumpPoster implements Runnable {
     public static final Logger LOG = LoggerFactory.getLogger(DumpPoster.class);
 
     @Option(name = "-in", usage = "Path to Files that are to be parsed and indexed", forbids = "-list")
-    private File file;
+    protected File file;
 
     @Option(name = "-list", usage = "Path Containing List of files to be processed", forbids = "-n")
-    private File listFile;
+    protected File listFile;
 
 
     @Option(name = "-solr", usage = "Solr URL", required = true)
-    private URL solrUrl;
+    protected URL solrUrl;
 
     @Option(name = "-threads", usage = "Number of Threads")
-    private int nThreads = 5;
+    protected int nThreads = 5;
 
     @Option(name = "-timeout", usage = "task timeout. The parser should finish within this time millis")
-    private long threadTimeout = 15 * 1000;
+    protected long threadTimeout = 15 * 1000;
 
     @Option(name = "-batch", usage = "Batch size for buffering solr postings")
-    private int batchSize = 500;
+    protected int batchSize = 500;
 
-    private ExecutorService service;
+    protected ExecutorService service;
 
     /**
      * task for parsing docs
      */
-    private class ParseTask implements Callable<ContentBean> {
+    protected class ParseTask implements Callable<ContentBean> {
 
         private final Parser parser;
         private File inDoc;
