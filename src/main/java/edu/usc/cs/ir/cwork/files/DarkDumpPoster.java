@@ -141,7 +141,7 @@ public class DarkDumpPoster extends DumpPoster {
             this.url2PathIdx = new HashMap<>();
             CSVParser csvRecords = CSVFormat.DEFAULT.parse(new FileReader(this.listFile));
             for (CSVRecord record : csvRecords) {
-                url2PathIdx.put(record.get(1), record.get(4));
+                url2PathIdx.put(makeUrl(record.get(1)), record.get(4));
             }
             LOG.info("Index has {} recs", url2PathIdx.size());
             pathFunction = new Function<String, String>() {
@@ -173,7 +173,7 @@ public class DarkDumpPoster extends DumpPoster {
                 if (input != null) {
                     LinkRecord rec = new LinkRecord();
                     rec.domain = input.get(0);
-                    rec.url = input.get(1);
+                    rec.url = makeUrl(input.get(1));
                     rec.title = input.get(2);
                     rec.path = input.get(4);
                     return rec;
@@ -181,6 +181,15 @@ public class DarkDumpPoster extends DumpPoster {
                 return null;
             }
         });
+    }
+
+    public static String makeUrl(String url) {
+        if (url.startsWith("http://") || url.startsWith("https://")
+                || url.startsWith("file://")) {
+            return url;
+        } else {
+            return  "http://" + url;
+        }
     }
 
     @Override
