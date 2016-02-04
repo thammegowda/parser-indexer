@@ -103,9 +103,8 @@ public class DarkDumpPoster extends DumpPoster {
                         if (path != null) {
                             bean.getOutpaths().add(path);
                         }
+
                     }
-                    System.out.println("Found " + bean.getOutlinks().size()
-                            + " unique outlinks.");
                 } else {
                     System.err.println("No outlinks found");
                 }
