@@ -10,6 +10,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.Text;
 import org.apache.nutch.metadata.Metadata;
 import org.apache.nutch.parse.Outlink;
 import org.apache.nutch.parse.Parse;
@@ -86,6 +87,7 @@ public class DarkDumpPoster extends DumpPoster {
             ParseResult result = parseUtil.parse(content);
 
             Parse parsed = result.get(content.getUrl());
+
             if (parsed != null) {
                 Outlink[] outlinks = parsed.getData().getOutlinks();
                 if (outlinks != null && outlinks.length > 0) {
@@ -102,6 +104,10 @@ public class DarkDumpPoster extends DumpPoster {
                             bean.getOutpaths().add(path);
                         }
                     }
+                    System.out.println("Found " + bean.getOutlinks().size()
+                            + " unique outlinks.");
+                } else {
+                    System.err.println("No outlinks found");
                 }
             } else {
                 System.err.println("This shouldn't be happening");
@@ -194,8 +200,7 @@ public class DarkDumpPoster extends DumpPoster {
                 List<LinkRecord> group = groupedDocs.next();
                 futures.clear();
                 for (LinkRecord doc : group) {
-                    File file = new File(doc.path);
-                    ParseTask task = new ParseTask(file, parser);
+                    LinkRecParseTask task = new LinkRecParseTask(doc, parser);
                     Future<ContentBean> future = getExecutors().submit(task);
                     futures.add(future);
                     count++;
