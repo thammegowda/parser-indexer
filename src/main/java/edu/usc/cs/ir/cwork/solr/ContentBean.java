@@ -15,7 +15,13 @@ public class ContentBean {
 
 
     @Field("id")
+    private String id;
+
+    @Field
     private String url;
+
+    @Field
+    private String title;
 
     @Field
     private String content;
@@ -52,16 +58,20 @@ public class ContentBean {
     @Field
     private String host;
 
-    public String getUrl() {
-        return url;
+    @Field private Set<String> outlinks;
+    @Field private Set<String> outpaths;
+
+
+    public String getId() {
+        return id;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
+    public void setId(String id) {
+        this.id = id;
         try {
-            this.host = new URL(url).getHost();
+            this.host = new URL(id).getHost();
         } catch (MalformedURLException e) {
-            e.printStackTrace();
+            System.err.println(e.getMessage());
         }
     }
 
@@ -170,6 +180,43 @@ public class ContentBean {
 
     public void setGeoCoords(Set<String> geoCoords) {
         this.geoCoords = geoCoords;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+        try {
+            this.host = new URL(url).getHost();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Set<String> getOutlinks() {
+        return outlinks;
+    }
+
+    public void setOutlinks(Set<String> outlinks) {
+        this.outlinks = outlinks;
+    }
+
+    public Set<String> getOutpaths() {
+        return outpaths;
+    }
+
+    public void setOutpaths(Set<String> outpaths) {
+        this.outpaths = outpaths;
     }
 }
 

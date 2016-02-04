@@ -254,7 +254,7 @@ public class Parser {
      */
     public ContentBean loadMetadataBean(File file, ContentBean bean) throws IOException, TikaException {
 
-        bean.setUrl(file.toURI().toURL().toExternalForm());
+        bean.setId(file.toURI().toURL().toExternalForm());
         Map<String, Object> mdFields = new HashMap<>();
         Metadata md = new Metadata();
         try (TikaInputStream stream = TikaInputStream.get(file.toPath(), md)) {

@@ -69,7 +69,7 @@ public class SolrIndexer {
 
         ContentBean bean = new ContentBean();
         bean.setContentType(content.getContentType());
-        bean.setUrl(content.getUrl());
+        bean.setId(content.getUrl());
 
         Map<String, Object> mdFields = new HashMap<>();
 
