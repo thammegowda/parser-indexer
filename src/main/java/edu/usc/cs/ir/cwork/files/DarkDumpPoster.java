@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +53,7 @@ import java.util.concurrent.TimeoutException;
 public class DarkDumpPoster extends DumpPoster {
 
     public static final Logger LOG = LoggerFactory.getLogger(DarkDumpPoster.class);
+    public static final Set<String> TAGS = new HashSet<String>() {{add("dark");}};
 
     private static class LinkRecord{
         public String domain;
@@ -77,6 +79,7 @@ public class DarkDumpPoster extends DumpPoster {
             bean.setId(file.toURI().toString());
             bean.setUrl(rec.url);
             bean.setTitle(rec.title);
+            bean.getMetadata().put("source_data_ss_md", TAGS);
             byte[] bytes = Files.readAllBytes(file.toPath());
             Content content = new Content(rec.url, rec.url, bytes,
                     TEXT_HTML, new Metadata(), nutchConf);
