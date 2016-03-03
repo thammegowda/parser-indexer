@@ -7,7 +7,14 @@ import edu.usc.cs.ir.cwork.solr.ContentBean;
 import edu.usc.cs.ir.cwork.solr.schema.FieldMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.util.Pair;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.nutch.parse.Outlink;
+import org.apache.nutch.parse.Parse;
+import org.apache.nutch.parse.ParseResult;
+import org.apache.nutch.parse.ParseSegment;
+import org.apache.nutch.parse.ParseUtil;
 import org.apache.nutch.protocol.Content;
+import org.apache.nutch.util.NutchConfiguration;
 import org.apache.tika.Tika;
 import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
@@ -31,15 +38,17 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static edu.usc.cs.ir.cwork.solr.SolrIndexer.MD_SUFFIX;
 import static edu.usc.cs.ir.cwork.solr.SolrIndexer.asSet;
@@ -65,8 +74,7 @@ public class Parser {
     private static Parser INSTANCE;
     private Tika tika;
     private GeoGazetteerClient geoClient;
-    private boolean debug = false;
-
+    private ParseUtil parseUtil;
     private FieldMapper mapper = FieldMapper.create();
 
     public Parser(InputStream configStream) {
@@ -76,6 +84,20 @@ public class Parser {
             String apiUrl = System.getProperty("gazetter.rest.api", "http://localhost:8765");
             geoClient =  new GeoGazetteerClient(apiUrl);
             LOG.info("Geo API available? {}", geoClient.checkAvail());
+            String nutchHome = System.getProperty("nutch.home", null);
+            if (nutchHome != null) {
+                LOG.info("Initializing nutch home from {}", nutchHome);
+                Configuration nutchConf = NutchConfiguration.create();
+                nutchConf.set("plugin.folders", new File(nutchHome, "plugins").getAbsolutePath());
+                nutchConf.setInt("parser.timeout", 10);
+                URLClassLoader loader = new URLClassLoader(
+                        new URL[]{new File(nutchHome, "conf").toURI().toURL()},
+                        nutchConf.getClassLoader());
+                nutchConf.setClassLoader(loader);
+                parseUtil = new ParseUtil(nutchConf);
+            } else {
+                LOG.warn("Nutch Home not set");
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -184,7 +206,6 @@ public class Parser {
         return null;
     }
 
-
     /**
      * Parses the URL content
      * @param url
@@ -218,7 +239,6 @@ public class Parser {
         return result;
     }
 
-
     public static Set<Date> parseDates(String...values) {
         Set<Date> result = new HashSet<>();
         for (String value : values) {
@@ -249,24 +269,90 @@ public class Parser {
     /**
      * Creates Solrj Bean from file
      *
+     * @param content nutch content
+     * @return Solrj Bean
+     */
+    public ContentBean loadMetadataBean(Content content,
+                                        Function<URL, String> urlToPathMapper,
+                                        ContentBean bean) throws IOException, TikaException {
+
+        String id = new File(urlToPathMapper.apply(new URL(content.getBaseUrl())))
+                .toURI().toURL().toExternalForm();
+        bean.setId(id);
+        Metadata md = new Metadata();
+        try (TikaInputStream stream = TikaInputStream.get(content.getContent(), md)) {
+           loadContentBean(bean, md, stream);
+        }
+        bean.setUrl(content.getUrl());
+        loadOutlinks(bean, urlToPathMapper, content);
+        String type = bean.getContentType();
+        if (type != null){
+            if (type.startsWith("text") || type.contains("ml")){
+                bean.setRawContent(new String(content.getContent(), Charset.forName("UTF-8")));
+            }
+        }
+
+
+        //FIXME : Add SHA1 digest
+        return bean;
+    }
+
+    public void loadOutlinks(ContentBean bean, Function<URL, String> pathFunction,
+                             Content content){
+        if (parseUtil == null || ParseSegment.isTruncated(content)) {
+            return;
+        }
+
+        try {
+            ParseResult result = parseUtil.parse(content);
+            if (!result.isSuccess()) {
+                return;
+            }
+            Parse parsed = result.get(content.getUrl());
+            if (parsed != null) {
+                Outlink[] outlinks = parsed.getData().getOutlinks();
+                if (outlinks != null && outlinks.length > 0) {
+                    Set<String> uniqOutlinks = new HashSet<>();
+                    Set<String> paths = new HashSet<>();
+                    for (Outlink outlink : outlinks) {
+                        uniqOutlinks.add(outlink.getToUrl());
+                    }
+                    for (String link : uniqOutlinks) {
+                        paths.add(pathFunction.apply(new URL(link)));
+                    }
+                    bean.setOutlinks(uniqOutlinks);
+                    bean.setOutpaths(paths);
+                }
+            } else {
+                System.err.println("This shouldn't be happening");
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Creates Solrj Bean from file
+     *
      * @param file the nutch content
      * @return Solrj Bean
      */
-    public ContentBean loadMetadataBean(File file, ContentBean bean) throws IOException, TikaException {
+    public ContentBean loadMetadataBean(File file, ContentBean bean)
+            throws IOException, TikaException {
 
         bean.setId(file.toURI().toURL().toExternalForm());
-        Map<String, Object> mdFields = new HashMap<>();
         Metadata md = new Metadata();
         try (TikaInputStream stream = TikaInputStream.get(file.toPath(), md)) {
-            String content = tika.parseToString(stream, md);
-            bean.setContent(content);
+            loadContentBean(bean, md, stream);
         }
-        if (debug) {
-            LOG.info("Meta from Tika for {}", file.toPath());
-            for (String name : md.names()) {
-                LOG.info("{}: {}", name, Arrays.toString(md.getValues(name)));
-            }
-        }
+        return bean;
+    }
+
+    private void loadContentBean(ContentBean bean, Metadata md, TikaInputStream stream)
+            throws IOException, TikaException {
+        Map<String, Object> mdFields = new HashMap<>();
+        String content = tika.parseToString(stream, md);
+        bean.setContent(content);
         try {
             for (String name : md.names()) {
                 boolean special = false;
@@ -310,12 +396,10 @@ public class Parser {
             suffixedFields.put(k, v);
         });
         bean.setMetadata(suffixedFields);
-        return bean;
     }
 
     public void enrichGeoFields(Set<String> locationNames, ContentBean bean) {
         try {
-
             if (bean.getCities() == null) {
                 bean.setCities(new HashSet<>());
             }
@@ -347,7 +431,7 @@ public class Parser {
                 }
             }
         } catch (Exception e) {
-          LOG.error(e.getMessage(), e);
+            LOG.error(e.getMessage(), e);
         }
     }
 
@@ -380,7 +464,6 @@ public class Parser {
             System.out.println("Using conf from : " + cliArg.confFile);
             parser = new Parser(new FileInputStream(cliArg.confFile));
         }
-        parser.debug = true;
 
         parser.loadMetadataBean(cliArg.inputFile, bean);
         String str = new GsonBuilder().setPrettyPrinting().create().toJson(bean);

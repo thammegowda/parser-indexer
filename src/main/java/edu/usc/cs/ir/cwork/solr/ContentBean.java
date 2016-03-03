@@ -13,7 +13,6 @@ import java.util.Set;
  */
 public class ContentBean {
 
-
     @Field("id")
     private String id;
 
@@ -61,6 +60,8 @@ public class ContentBean {
     @Field private Set<String> outlinks;
     @Field private Set<String> outpaths;
 
+    private Date fetchTime;
+    private String rawContent;
 
     public String getId() {
         return id;
@@ -217,6 +218,22 @@ public class ContentBean {
 
     public void setOutpaths(Set<String> outpaths) {
         this.outpaths = outpaths;
+    }
+
+    public Date getFetchTime() {
+        return fetchTime;
+    }
+
+    public void setFetchTime(Date fetchTime) {
+        this.fetchTime = fetchTime;
+    }
+
+    public String getRawContent() {
+        return rawContent;
+    }
+
+    public void setRawContent(String rawContent) {
+        this.rawContent = rawContent;
     }
 }
 

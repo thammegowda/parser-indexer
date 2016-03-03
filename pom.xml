@@ -28,6 +28,7 @@
         <exec.mainClass>edu.usc.cs.ir.cwork.Main</exec.mainClass>
         <scala.version>2.11</scala.version>
         <spark.version>1.5.1</spark.version>
+        <elasticsearch.version>1.7.5</elasticsearch.version>
     </properties>
 
     <dependencies>
@@ -139,6 +140,11 @@
             <version>1.9.22</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+        </dependency>
 
     </dependencies>
     <developers>
@@ -161,20 +167,6 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
-            <!--<plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>${exec.mainClass}</mainClass>
-                        </manifest>
-                    </archive>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                </configuration>
-            </plugin>-->
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
