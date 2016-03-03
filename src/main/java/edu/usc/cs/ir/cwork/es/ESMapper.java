@@ -1,7 +1,6 @@
 package edu.usc.cs.ir.cwork.es;
 
 import edu.usc.cs.ir.cwork.solr.ContentBean;
-import org.apache.nutch.indexer.NutchDocument;
 import org.json.JSONObject;
 
 /**
@@ -9,11 +8,11 @@ import org.json.JSONObject;
  */
 public class ESMapper  {
 
-    public static NutchDocument beanToNutchDoc(ContentBean contentBean) {
-        NutchDocument doc = new NutchDocument();
+    public static JSONObject toCDRSchema(ContentBean contentBean) {
+        JSONObject doc = new JSONObject();
 
         String id = contentBean.getId();
-        doc.add("obj_id", id);
+        doc.put("obj_id", id);
         /*FIXME: The below info not available
         if (datum.getMetaData().containsKey("obj_parent")) {
             doc.add("obj_parent", datum.getMetaData().get("obj_parent").toString());
@@ -25,29 +24,29 @@ public class ESMapper  {
             }
         }
         */
-        doc.add("obj_children", contentBean.getOutpaths());
-        doc.add("obj_childrenurls", contentBean.getOutlinks());
+        doc.put("obj_children", contentBean.getOutpaths());
+        doc.put("obj_childrenurls", contentBean.getOutlinks());
 
-        doc.add("content_type", contentBean.getContentType());
+        doc.put("content_type", contentBean.getContentType());
         //doc.add("crawl_data", extractedData);
-        doc.add("crawler", "Nutch-1.12-SNAPSHOT");
+        doc.put("crawler", "Nutch-1.12-SNAPSHOT");
 
         JSONObject extractedMd = new JSONObject(contentBean.getMetadata());
-        doc.add("extracted_metadata", extractedMd);
-        doc.add("extracted_text", contentBean.getContent());
-        doc.add("obj_original_url", contentBean.getUrl());
+        doc.put("extracted_metadata", extractedMd);
+        doc.put("extracted_text", contentBean.getContent());
+        doc.put("obj_original_url", contentBean.getUrl());
         String storedUrl = id.replace(
                 "file:/data2/USCWeaponsStatsGathering/nutch/full_dump/",
                 "http://imagecat.dyndns.org/weapons/alldata/");
-        doc.add("obj_stored_url", storedUrl);
+        doc.put("obj_stored_url", storedUrl);
 
-        doc.add("team", "NASA_JPL");
+        doc.put("team", "NASA_JPL");
         //FIXME: The below info not available
         // doc.add("timestamp", datum.getFetchTime());
-        doc.add("url", contentBean.getUrl());
-        doc.add("version", (float)2.0);
+        doc.put("url", contentBean.getUrl());
+        doc.put("version", (float)2.0);
 
-        doc.add("raw_content", contentBean.getRawContent());
+        doc.put("raw_content", contentBean.getRawContent());
         return doc;
     }
 
