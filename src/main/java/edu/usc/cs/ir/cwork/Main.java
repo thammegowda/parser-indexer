@@ -1,5 +1,6 @@
 package edu.usc.cs.ir.cwork;
 
+import edu.usc.cs.ir.cwork.es.EsIndexer;
 import edu.usc.cs.ir.cwork.files.DumpPoster;
 import edu.usc.cs.ir.cwork.nutch.LastModifiedUpdater;
 import edu.usc.cs.ir.cwork.nutch.OutlinkUpdater;
@@ -35,6 +36,7 @@ public class Main {
         postdump("Parse the file dump  and post 'em to solr ", DumpPoster.class),
         outlinks("Parse the nutch segments for outlinks and posts 'em to solr", OutlinkUpdater.class),
         lastmodified("Retrieves last-modified HTTP header value from nutch segments and updates it to Solr", LastModifiedUpdater.class),
+        cdrindex("Index Nutch Segments to CDR (Elastic Search)", EsIndexer.class),
         updaterank("Updates Page rank", SolrPageRankUpdater.class),
         parsecheck("Checks the parser output (input a config and a file )",Parser.class);
 
