@@ -7,10 +7,15 @@ import edu.usc.cs.ir.cwork.solr.ContentBean;
 import edu.usc.cs.ir.cwork.tika.Parser;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.util.Pair;
-import org.apache.nutch.indexer.NutchDocument;
 import org.apache.nutch.protocol.Content;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.response.UpdateResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.json.JSONObject;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -42,8 +47,15 @@ public class EsIndexer {
             required = true)
     private File segsFile;
 
-    @Option(name = "-url", usage = "ES Url", required = true)
-    private URL solrUrl;
+    @Option(name = "-ehost", usage = "ES Host", required = true)
+    private String elasticHost;
+
+    @Option(name = "-eport", usage = "ES port")
+    private int elasticPost = 9300;
+
+    @Option(name = "-ecluster", usage = "ES clustername")
+    private String elasticCluster = "elasticsearch";
+
 
     @Option(name = "-nutch", usage = "Path to Nutch home.", required = true)
     private String nutchHome;
@@ -66,38 +78,52 @@ public class EsIndexer {
      */
     public void run() throws IOException, InterruptedException, SolrServerException {
 
+        //STEP 1: initialize NUTCH
         System.setProperty("nutch.home", nutchHome);
+        //step 2: path mapper
         this.pathMapper = new NutchDumpPathBuilder(this.dumpPath);
 
-        FileInputStream stream = new FileInputStream(segsFile);
-        List<String> paths = IOUtils.readLines(stream);
-        IOUtils.closeQuietly(stream);
-        LOG.info("Found {} lines in {}", paths.size(), segsFile.getAbsolutePath());
-        SegContentReader reader = new SegContentReader(paths);
-        RecordIterator recs = reader.read();
-        index(recs, TODO:elastic);
-        System.out.println(recs.getCount());
+        //Step 3: elastic client
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put("cluster.name", elasticCluster).build();
+        try(Client eClient = new TransportClient()
+                .addTransportAddress(new InetSocketTransportAddress(elasticHost, elasticPost))){
+            FileInputStream stream = new FileInputStream(segsFile);
+            List<String> paths = IOUtils.readLines(stream);
+            IOUtils.closeQuietly(stream);
+            LOG.info("Found {} lines in {}", paths.size(), segsFile.getAbsolutePath());
+            SegContentReader reader = new SegContentReader(paths);
+            RecordIterator recs = reader.read();
+            index(recs, eClient);
+            System.out.println(recs.getCount());
+        }
+
+
+
+
+
+
     }
 
-    private void index(RecordIterator recs,  TODO:elastic) throws IOException, SolrServerException {
+    private void index(RecordIterator recs, Client elastic) throws IOException, SolrServerException {
 
         long st = System.currentTimeMillis();
         long count = 0;
         long delay = 2 * 1000;
         Parser parser = Parser.getInstance();
-        List<NutchDocument> buffer = new ArrayList<>(batchSize);
+        List<JSONObject> buffer = new ArrayList<>(batchSize);
         while (recs.hasNext()) {
             Pair<String, Content> rec = recs.next();
             Content content = rec.getValue();
             ContentBean bean = new ContentBean();
             try {
                 parser.loadMetadataBean(content, pathMapper, bean);
-                buffer.add(ESMapper.beanToNutchDoc(bean));
+                buffer.add(ESMapper.toCDRSchema(bean));
                 count++;
                 if (buffer.size() >= batchSize) {
                     try {
-                        TODO:
-                        elastic.addBeans(buffer);
+                        /*TODO: elastic.addBeans(buffer);*/
+                        //FIXME: bulk request?
                         buffer.clear();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
@@ -115,13 +141,10 @@ public class EsIndexer {
 
         //left out
         if (!buffer.isEmpty()) {
-            TODO:elastic.add(buffer);
+            /*TODO:elastic.add(buffer);*/
         }
+        LOG.info("Num Docs = {}", count);
 
-        // commit
-        LOG.info("Committing before exit. Num Docs = {}", count);
-        UpdateResponse response = TODO:elastic.commit();
-        LOG.info("Commit response : {}", response);
     }
 
     public static void main(String[] args) throws InterruptedException,
@@ -137,6 +160,7 @@ public class EsIndexer {
         }
 
         indexer.run();
+        LOG.info("Done");
         System.out.println("Done");
     }
 }
