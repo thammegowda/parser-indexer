@@ -3,13 +3,16 @@ package edu.usc.cs.ir.cwork.es;
 import edu.usc.cs.ir.cwork.solr.ContentBean;
 import org.json.JSONObject;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Created by tg on 3/3/16.
  */
 public class ESMapper  {
 
-    public static JSONObject toCDRSchema(ContentBean contentBean) {
-        JSONObject doc = new JSONObject();
+    public static Map<String, Object> toCDRSchema(ContentBean contentBean) {
+        Map<String, Object> doc = new LinkedHashMap<>();
 
         String id = contentBean.getId();
         doc.put("obj_id", id);

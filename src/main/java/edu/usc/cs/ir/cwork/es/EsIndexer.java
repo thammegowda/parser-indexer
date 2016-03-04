@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -135,7 +136,7 @@ public class EsIndexer {
         long count = 0;
         long delay = 2 * 1000;
         Parser parser = Parser.getInstance();
-        List<JSONObject> buffer = new ArrayList<>(batchSize);
+        List<Map<String, ?>> buffer = new ArrayList<>(batchSize);
         while (recs.hasNext()) {
             Pair<String, Content> rec = recs.next();
             Content content = rec.getValue();
@@ -169,16 +170,16 @@ public class EsIndexer {
         LOG.info("Num Docs = {}", count);
     }
 
-    private void indexAll(List<JSONObject> docs, JestClient client) throws IOException {
+    private void indexAll(List<Map<String, ?>> docs, JestClient client) throws IOException {
 
         List<Index> inputDocs = new ArrayList<>();
-        for (JSONObject doc : docs) {
+        for (Map<String, ?> doc : docs) {
             String id = (String) doc.remove("obj_id");
             if (id == null) {
                 LOG.warn("No ID set to document. Skipped");
                 continue;
             }
-            inputDocs.add(new Index.Builder(doc.toString()).id(id).build());
+            inputDocs.add(new Index.Builder(doc).id(id).build());
         }
         Bulk bulk = new Bulk.Builder()
                 .defaultIndex(creds.indexName)
