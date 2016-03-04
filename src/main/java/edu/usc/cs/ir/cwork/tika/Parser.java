@@ -276,23 +276,25 @@ public class Parser {
                                         Function<URL, String> urlToPathMapper,
                                         ContentBean bean) throws IOException, TikaException {
 
-        String id = new File(urlToPathMapper.apply(new URL(content.getBaseUrl())))
-                .toURI().toURL().toExternalForm();
+        URL url = new URL(content.getBaseUrl());
+        String id = urlToPathMapper.apply(url);
         bean.setId(id);
         Metadata md = new Metadata();
         try (TikaInputStream stream = TikaInputStream.get(content.getContent(), md)) {
-           loadContentBean(bean, md, stream);
+            loadContentBean(bean, md, true, stream);
         }
         bean.setUrl(content.getUrl());
         loadOutlinks(bean, urlToPathMapper, content);
         String type = bean.getContentType();
         if (type != null){
             if (type.startsWith("text") || type.contains("ml")){
-                bean.setRawContent(new String(content.getContent(), Charset.forName("UTF-8")));
+                try {
+                    bean.setRawContent(new String(content.getContent(), Charset.forName("UTF-8")));
+                }catch (Exception e){
+                    LOG.warn(e.getMessage(), e);
+                }
             }
         }
-
-
         //FIXME : Add SHA1 digest
         return bean;
     }
@@ -343,12 +345,14 @@ public class Parser {
         bean.setId(file.toURI().toURL().toExternalForm());
         Metadata md = new Metadata();
         try (TikaInputStream stream = TikaInputStream.get(file.toPath(), md)) {
-            loadContentBean(bean, md, stream);
+            loadContentBean(bean, md, true, stream);
         }
         return bean;
     }
 
-    private void loadContentBean(ContentBean bean, Metadata md, TikaInputStream stream)
+    private void loadContentBean(ContentBean bean, Metadata md,
+                                 boolean keepMetaCopy,
+                                 TikaInputStream stream)
             throws IOException, TikaException {
         Map<String, Object> mdFields = new HashMap<>();
         String content = tika.parseToString(stream, md);
@@ -356,13 +360,13 @@ public class Parser {
         try {
             for (String name : md.names()) {
                 boolean special = false;
-                if (name.startsWith("NER_"))  {
+                if (name.startsWith("NER_")) {
                     special = true; //could be special
                     String nameType = name.substring("NER_".length());
                     if (DATE.equals(nameType)) {
                         Set<Date> dates = parseDates(md.getValues(name));
                         bean.setDates(dates);
-                    } else if (PERSON.equals(nameType)){
+                    } else if (PERSON.equals(nameType)) {
                         bean.setPersons(asSet(md.getValues(name)));
                     } else if (ORGANIZATION.equals(nameType)) {
                         bean.setOrganizations(asSet(md.getValues(name)));
@@ -378,7 +382,7 @@ public class Parser {
                     bean.setContentType(md.get(name));
                 }
 
-                if (!special) {
+                if (keepMetaCopy || !special) {
                     mdFields.put(name, md.isMultiValued(name)
                             ? md.getValues(name) : md.get(name));
                 }
@@ -387,7 +391,7 @@ public class Parser {
             e.printStackTrace();
         }
 
-        Map<String, Object> mappedMdFields = mapper.mapFields(mdFields, true);
+        Map<String, Object> mappedMdFields = mapper.mapFields(mdFields, false);
         Map<String, Object> suffixedFields = new HashMap<>();
         mappedMdFields.forEach((k, v) -> {
             if (!k.endsWith(MD_SUFFIX)) {

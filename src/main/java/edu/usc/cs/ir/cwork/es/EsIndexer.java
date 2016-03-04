@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -49,8 +48,9 @@ public class EsIndexer {
     @Option(name = "-nutch", usage = "Path to Nutch home.", required = true)
     private String nutchHome;
 
-    @Option(name = "-dump", usage = "Path to dump prefix.", required = true)
-    private String dumpPath;
+    @Option(name = "-dump", usage = "Path to dump prefix.")
+    private String dumpPath = "/data2/USCWeaponsStatsGathering/nutch/full_dump/";
+
 
     @Option(name = "-batch", usage = "Number of documents to buffer and post to solr",
             required = false)
@@ -121,8 +121,10 @@ public class EsIndexer {
     private JestClient openCDRClient(){
         LOG.info("CDR name:type = {}:{}", creds.indexName, creds.indexType);
         JestClientFactory factory = new JestClientFactory();
-        factory.setHttpClientConfig(new HttpClientConfig.
-                Builder(creds.clusterUri).discoveryEnabled(false).discoveryFrequency(1l, TimeUnit.MINUTES).multiThreaded(true)
+        factory.setHttpClientConfig(new HttpClientConfig.Builder(creds.clusterUri)
+                .discoveryEnabled(false)
+                .discoveryFrequency(1l, TimeUnit.MINUTES)
+                .multiThreaded(true)
                 .defaultCredentials(creds.username, creds.password)
                 .connTimeout(300000).readTimeout(300000)
                 .build());
@@ -136,7 +138,7 @@ public class EsIndexer {
         long count = 0;
         long delay = 2 * 1000;
         Parser parser = Parser.getInstance();
-        List<Map<String, ?>> buffer = new ArrayList<>(batchSize);
+        List<JSONObject> buffer = new ArrayList<>(batchSize);
         while (recs.hasNext()) {
             Pair<String, Content> rec = recs.next();
             Content content = rec.getValue();
@@ -159,6 +161,7 @@ public class EsIndexer {
                 }
             } catch (Exception e){
                 LOG.error("Error processing {}", content.getUrl());
+                LOG.error(e.getMessage(), e);
             }
         }
 
@@ -170,16 +173,16 @@ public class EsIndexer {
         LOG.info("Num Docs = {}", count);
     }
 
-    private void indexAll(List<Map<String, ?>> docs, JestClient client) throws IOException {
+    private void indexAll(List<JSONObject> docs, JestClient client) throws IOException {
 
         List<Index> inputDocs = new ArrayList<>();
-        for (Map<String, ?> doc : docs) {
+        for (JSONObject doc : docs) {
             String id = (String) doc.remove("obj_id");
             if (id == null) {
                 LOG.warn("No ID set to document. Skipped");
                 continue;
             }
-            inputDocs.add(new Index.Builder(doc).id(id).build());
+            inputDocs.add(new Index.Builder(doc.toString()).id(id).build());
         }
         Bulk bulk = new Bulk.Builder()
                 .defaultIndex(creds.indexName)
@@ -192,8 +195,10 @@ public class EsIndexer {
         }
     }
 
+
     public static void main(String[] args) throws InterruptedException,
             SolrServerException, IOException {
+        args = "-cdrcreds cdrcreds.properties -batch 1 -segs segs.list -nutch /home/tg/work/coursework/cs572/nutch/".split(" ");
         EsIndexer indexer = new EsIndexer();
         CmdLineParser cmdLineParser = new CmdLineParser(indexer);
         try {

@@ -11,8 +11,8 @@ import java.util.Map;
  */
 public class ESMapper  {
 
-    public static Map<String, Object> toCDRSchema(ContentBean contentBean) {
-        Map<String, Object> doc = new LinkedHashMap<>();
+    public static JSONObject toCDRSchema(ContentBean contentBean) {
+        JSONObject doc = new JSONObject();
 
         String id = contentBean.getId();
         doc.put("obj_id", id);
@@ -27,8 +27,8 @@ public class ESMapper  {
             }
         }
         */
-        doc.put("obj_children", contentBean.getOutpaths());
-        doc.put("obj_childrenurls", contentBean.getOutlinks());
+        doc.put("obj_outlinks", contentBean.getOutpaths());
+        doc.put("obj_outurls", contentBean.getOutlinks());
 
         doc.put("content_type", contentBean.getContentType());
         //doc.add("crawl_data", extractedData);
@@ -38,6 +38,8 @@ public class ESMapper  {
         doc.put("extracted_metadata", extractedMd);
         doc.put("extracted_text", contentBean.getContent());
         doc.put("obj_original_url", contentBean.getUrl());
+
+        //FIXME : make this replacement configurable
         String storedUrl = id.replace(
                 "file:/data2/USCWeaponsStatsGathering/nutch/full_dump/",
                 "http://imagecat.dyndns.org/weapons/alldata/");
@@ -48,6 +50,7 @@ public class ESMapper  {
         // doc.add("timestamp", datum.getFetchTime());
         doc.put("url", contentBean.getUrl());
         doc.put("version", (float)2.0);
+        doc.put("parsed_at", System.currentTimeMillis());
 
         doc.put("raw_content", contentBean.getRawContent());
         return doc;
