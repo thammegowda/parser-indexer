@@ -16,7 +16,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <tika.version>1.12-SNAPSHOT</tika.version>
+        <tika.version>1.12</tika.version>
         <nutch.version>1.11</nutch.version>
         <solr.version>4.10.4</solr.version>
         <junit.version>4.12</junit.version>
