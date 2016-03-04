@@ -45,15 +45,6 @@ public class EsIndexer {
             required = true)
     private File segsFile;
 
-    @Option(name = "-ehost", usage = "ES Host", required = true)
-    private String elasticHost;
-
-    @Option(name = "-eport", usage = "ES port")
-    private int elasticPost = 9300;
-
-    @Option(name = "-ecluster", usage = "ES clustername")
-    private String elasticCluster = "elasticsearch";
-
     @Option(name = "-nutch", usage = "Path to Nutch home.", required = true)
     private String nutchHome;
 
@@ -69,7 +60,6 @@ public class EsIndexer {
 
     private CDRCreds creds;
     private Function<URL, String> pathMapper;
-
 
     /**
      * This POJO stores MEMEX credentials
