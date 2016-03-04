@@ -198,7 +198,6 @@ public class EsIndexer {
 
     public static void main(String[] args) throws InterruptedException,
             SolrServerException, IOException {
-        args = "-cdrcreds cdrcreds.properties -batch 1 -segs segs.list -nutch /home/tg/work/coursework/cs572/nutch/".split(" ");
         EsIndexer indexer = new EsIndexer();
         CmdLineParser cmdLineParser = new CmdLineParser(indexer);
         try {
