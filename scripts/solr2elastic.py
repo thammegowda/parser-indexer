@@ -116,7 +116,7 @@ class Solr2Elastic(object):
                 "_id": id,
                 "_source":es_doc
             })
-            self.elastic.index(index, type, es_doc, id=id)
+            #self.elastic.index(index, type, es_doc, id=id)
             if len(buffer) > batch:
                 helpers.bulk(self.elastic, buffer)
                 del buffer[:]
