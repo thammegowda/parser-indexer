@@ -47,7 +47,7 @@ import time
 import re
 from datetime import datetime
 import os.path
-
+import codecs
 from elasticsearch.helpers import BulkIndexError
 
 current_milli_time = lambda: int(round(time.time() * 1000))  # replacement for System.currentMillis() ;)
@@ -261,7 +261,7 @@ def get_raw_content(path):
     :return: content as string
     """
     if os.path.isfile(path):
-        with open(path) as f:
+        with codecs.open(path, encoding='utf-8') as f:
             return f.read()
 
 
