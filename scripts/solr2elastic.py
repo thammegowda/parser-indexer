@@ -1,6 +1,23 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+# <p/>
+# http://www.apache.org/licenses/LICENSE-2.0
+# <p/>
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+####
+#
 # A simple client to sync data from solr to elastic.
 # The parameters are configurable via a config file.
-# An example config file format:
+# An example config file:
 """
 [solr]
     url=http://user:pass@host/solr/core
@@ -9,6 +26,8 @@
     start=0
     rows=100
     # rows is page size, the client internally paginates over all docs matched to query
+    limit=
+    # limit is for terminating after N number of docs
 [elastic]
     cluster=http://localhost:9400/
     index=weapons
@@ -27,34 +46,65 @@ import requests
 import time
 import re
 from datetime import datetime
+import os.path
 
+from elasticsearch.helpers import BulkIndexError
 
 current_milli_time = lambda: int(round(time.time() * 1000))  # replacement for System.currentMillis() ;)
 
+
 class Solr(object):
+
+    DT_FMT = "%Y-%m-%dT%H:%M:%SZ"
+
     '''
     Solr client for querying docs
     '''
     def __init__(self, solr_url):
         self.query_url = solr_url + ('' if solr_url.endswith('/') else '/' ) + 'select'
 
-    def query_iterator(self, query='*:*', start=0, rows=20, **kwargs):
+    def query(self, query='*:*', start=0, rows=20, **kwargs):
+        '''
+        Queries solr and returns results as a dictionary
+        returns None on failure, items on success
+        '''
+        payload = {
+            'q': query,
+            'wt': 'python',
+            'start': start,
+            'rows': rows
+        }
+        if kwargs:
+            for key in kwargs:
+                payload[key] = kwargs.get(key)
+
+        resp = requests.get(self.query_url, params=payload)
+        if resp.status_code == 200:
+            return eval(resp.text)['response']['docs']
+        else:
+            print(resp.status_code)
+            return None
+
+    def query_iterator(self, query='*:*', start=0, rows=20, limit=None, **kwargs):
         '''
         Queries solr server and returns Solr response  as dictionary
         returns None on failure, iterator of results on success
         '''
         payload = {
-                   'q': query,
-                    'wt': 'python',
-                    'rows': rows
-                   }
+            'q': query,
+            'wt': 'python',
+            'rows': rows
+        }
 
         if kwargs:
             for key in kwargs:
                 payload[key] = kwargs.get(key)
 
         total = start + 1
+        count = 0
         while start < total:
+            if limit and count >= limit: # terminate
+                break
             payload['start'] = start
             print('start = %s, total= %s' % (start, total))
             resp = requests.get(self.query_url, params=payload)
@@ -67,6 +117,7 @@ class Solr(object):
                 total = resp['response']['numFound']
                 for doc in resp['response']['docs']:
                     start += 1
+                    count += 1
                     yield doc
             else:
                 print(resp)
@@ -85,18 +136,35 @@ class Solr2Elastic(object):
         hosts = [config.get('elastic','cluster')]
         self.elastic = Elasticsearch(hosts)
 
-    def sync(self, transform_func, batch=200):
+    def get_parent_id(self, id):
+        """
+        Gets parent document of a doc
+        :param id:  parent document
+        :return: id of parent if exists, else None
+        """
+        qry = 'outpaths:"%s"' % id
+        parents = self.solr.query(qry, start=0, rows=3, fl="id")
+        if parents:
+            for parent in parents:
+                if id != parent['id']: # the same document may be in parent list!
+                    return parent['id']
+        return None
+
+    def sync(self, transform_func):
         """
         Syncs data from solr to elastic
         :param transform_func: function to transform solr document to elastic document
-        :param batch: bulk request size
         :return: num docs processed
         """
         qry = self.config.get('solr','query')
         start = int(self.config.get('solr', 'start'))
         rows = int(self.config.get('solr', 'rows'))
+        limit = self.config.get('solr', 'limit')
+        if limit:
+            limit = int(limit)
+
         fl = self.config.get('solr', 'fl')
-        docs = self.solr.query_iterator(query=qry, start=start, rows=rows, fl=fl)
+        docs = self.solr.query_iterator(query=qry, start=start, rows=rows, limit=limit, fl=fl)
         index = self.config.get('elastic', 'index')
         type = self.config.get('elastic','type')
 
@@ -108,6 +176,8 @@ class Solr2Elastic(object):
         num_batches = 0
         for solr_doc in docs:
             count += 1
+            if not 'parent_id' in solr_doc:   #get it
+                solr_doc['parent_id'] = self.get_parent_id(solr_doc['id'])
             (id, es_doc) = transform_func(solr_doc)
             es_doc['imported_at'] = datetime.now()
             buffer.append({
@@ -116,9 +186,11 @@ class Solr2Elastic(object):
                 "_id": id,
                 "_source":es_doc
             })
-            self.elastic.index(index, type, es_doc, id=id)
-            if len(buffer) > batch:
-                helpers.bulk(self.elastic, buffer)
+            if len(buffer) >= rows:
+                try:
+                    helpers.bulk(self.elastic, buffer)
+                except BulkIndexError as e:
+                    print("ERROR: %s" % e)
                 del buffer[:]
                 num_batches += 1
 
@@ -128,6 +200,7 @@ class Solr2Elastic(object):
 
         if len(buffer) > 0:
             helpers.bulk(self.elastic, buffer)
+            pass
         print("Done: %d" % count)
         return count
 
@@ -151,11 +224,38 @@ def transform_edr2cdr(doc):
             res[key] = val
     res['extracted_metadata'] = metadata
     res['obj_stored_url'] = id.replace(Config.dump_path, Config.mount_point)
+    res['timestamp'] = 1000 * int(parse_date(doc.get('lastModified')).strftime("%s"))
     res.update(Config.additions)
+    if "text" in doc['contentType'] or "ml" in doc['contentType']: # for text content type
+        res['raw_data'] = get_raw_content(id.replace("file:", ""))
+
     # res['crawl_data'] = None FIXME: these are not found in solr
-    # res['timestamp'] = None
-    # res['obj_parent] = None
     return (id, res)
+
+
+def get_raw_content(path):
+    """
+    Gets content of a file as string
+    :param path: file path
+    :return: content as string
+    """
+    if os.path.isfile(path):
+        with open(path) as f:
+            return f.read()
+
+
+def parse_date(date_str, fmt=Solr.DT_FMT):
+    """
+    parses date string to date object
+    :param date_str: date string in solr format
+    :return: date object on success or datetime.now() on failure
+    """
+    if date_str:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except Exception:
+            print("Error parsing date %s" % date_str)
+    return datetime.now()
 
 
 class Config(object):
@@ -170,14 +270,15 @@ class Config(object):
     }
     mapping = {
         'id': 'obj_id',
+        'parent_id': 'obj_parent',
         'outlinks': 'obj_outlinks',
-        'outpaths': 'obj_outurls',
+        'outpaths': 'obj_children',
         'contentType': 'content_type',
         'content': 'extracted_text',
         'url': 'obj_original_url'
     }
     removals = {}
-    md_pattern = re.compile(r"(.*)_(ts?|ss?|ds?|bs?|fs?|is?|l?)_md")
+    md_pattern = re.compile(r"(.*)_(ts?|ss?|ds?|bs?|fs?|is?|ls?)_md")
     dump_path = "file:/data2/USCWeaponsStatsGathering/nutch/full_dump/"
     mount_point = "http://imagecat.dyndns.org/weapons/alldata/"
 
@@ -190,4 +291,4 @@ if __name__ == '__main__':
     config.read(args['config'])
     s2e = Solr2Elastic(config)
     count = s2e.sync(transform_edr2cdr)
-    print("Total docs imported=%d"%count)
+    print("Total docs imported=%d" % count)
