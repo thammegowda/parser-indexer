@@ -212,6 +212,7 @@ def transform_edr2cdr(doc):
     """
     id = doc['id']
     res = {}
+    res['edr_id'] = id
     metadata = {} # since ES can take nested json, we club all metadata keys from solr
     for key, val in doc.items():
         if key in Config.mapping:
@@ -229,9 +230,29 @@ def transform_edr2cdr(doc):
     if "text" in doc['contentType'] or "ml" in doc['contentType']: # for text content type
         res['raw_data'] = get_raw_content(id.replace("file:", ""))
 
+    # Map ids to CDR
+    id = transform_edr2cdr_id(res.get("obj_id"))
+    res['obj_id'] = id
+    res['obj_children'] = transform_edr2cdr_id(res.get("obj_children"))
+    res['obj_parent'] = transform_edr2cdr_id(res.get("obj_parent"))
+
     # res['crawl_data'] = None FIXME: these are not found in solr
     return (id, res)
 
+def transform_edr2cdr_id(edrid):
+    """
+    Converts edr id to cdr id.
+    EDR id includes coplete path of file,
+    CDR id just has has hash which is also a file name
+    :param edrid:
+    :return: file name
+    """
+    if not edrid:
+        return None
+    if type(edrid) == list:
+        return map(transform_edr2cdr_id, edrid)
+    else:
+        return edrid.split("/")[-1]
 
 def get_raw_content(path):
     """
