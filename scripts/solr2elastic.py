@@ -269,9 +269,12 @@ def get_raw_content(path):
     :return: content as string
     """
     if os.path.isfile(path):
-        with codecs.open(path, encoding='utf-8') as f:
-            return f.read()
-
+        try :
+            with codecs.open(path, encoding='utf-8', errors="ignore") as f:
+                return f.read()
+        except Exception as e:
+            print("Error reading %s :: %s" %(path, e))
+    return None
 
 def parse_date(date_str, fmt=Solr.DT_FMT):
     """
