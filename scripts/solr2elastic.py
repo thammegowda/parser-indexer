@@ -32,6 +32,8 @@
     cluster=http://localhost:9400/
     index=weapons
     type=testdoc
+    user=xxxx
+    password=yyyy
 [import]
     log_delay=2000
 """
@@ -40,8 +42,7 @@
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from elasticsearch import Elasticsearch
-from elasticsearch import helpers
+from elasticsearch import Elasticsearch, RequestsHttpConnection, helpers
 import requests
 import time
 import re
@@ -134,7 +135,14 @@ class Solr2Elastic(object):
         self.config = config
         self.solr = Solr(config.get('solr', 'url'))
         hosts = [config.get('elastic','cluster')]
-        self.elastic = Elasticsearch(hosts)
+        auth = (config.get('elastic','user'), config.get('elastic','password'))
+        self.elastic = Elasticsearch(hosts,
+                                     connection_class=RequestsHttpConnection,
+                                     http_auth=auth,
+                                     use_ssl=False, verify_certs=False)
+        print("ES client Check:")
+        print(self.elastic.info())
+
 
     def get_parent_id(self, id):
         """
@@ -304,8 +312,9 @@ class Config(object):
     mount_point = "http://imagecat.dyndns.org/weapons/alldata/"
 
 if __name__ == '__main__':
-    parser = ArgumentParser(prog="Import EDR docs to CDR",
-                            description="This program copies data from EDR(Solr) to CDR(Elastic) and was developed at NASA JPL to copy index from solr to Elastic Search")
+    parser = ArgumentParser(description="This program copies data from EDR(Solr) to CDR(Elastic)" +
+                                        "\n and was developed at NASA JPL to copy index from " +
+                                        "solr to Elastic Search")
     parser.add_argument('-cfg','--config', help='Configuration File', required=True)
     args = vars(parser.parse_args())
     config = ConfigParser()
