@@ -50,6 +50,9 @@ from datetime import datetime
 import os.path
 import codecs
 from elasticsearch.helpers import BulkIndexError
+import traceback                    
+                    
+
 
 current_milli_time = lambda: int(round(time.time() * 1000))  # replacement for System.currentMillis() ;)
 
@@ -134,15 +137,19 @@ class Solr2Elastic(object):
     def __init__(self, config):
         self.config = config
         self.solr = Solr(config.get('solr', 'url'))
+        self.elastic = self.get_es_client()
+
+    def get_es_client(self):
+        config = self.config
         hosts = [config.get('elastic','cluster')]
         auth = (config.get('elastic','user'), config.get('elastic','password'))
-        self.elastic = Elasticsearch(hosts,
+        es = Elasticsearch(hosts, timeout=40,
                                      connection_class=RequestsHttpConnection,
                                      http_auth=auth,
                                      use_ssl=False, verify_certs=False)
         print("ES client Check:")
-        print(self.elastic.info())
-
+        print(es.info())
+        return es
 
     def get_parent_id(self, id):
         """
@@ -196,10 +203,19 @@ class Solr2Elastic(object):
             })
             if len(buffer) >= rows:
                 try:
+                    t1 = current_milli_time()
                     helpers.bulk(self.elastic, buffer)
+                    print "ES Bulk Req took %d ms for %d docs" % (current_milli_time() - t1, len(buffer))
+                    
                 except BulkIndexError as e:
                     print("ERROR: %s" % e)
-                del buffer[:]
+                except Exception as e:
+                    print("ERROR: %s" % e)
+                    traceback.print_exc()
+                    print("Sleeping..")
+                    time.sleep(10)
+                    self.elastic = self.get_es_client() # reinitialize
+                buffer = []
                 num_batches += 1
 
             if current_milli_time() - st > progress_delay:
@@ -233,10 +249,13 @@ def transform_edr2cdr(doc):
             res[key] = val
     res['extracted_metadata'] = metadata
     res['obj_stored_url'] = id.replace(Config.dump_path, Config.mount_point)
-    res['timestamp'] = 1000 * int(parse_date(doc.get('lastModified')).strftime("%s"))
+    try:
+        res['timestamp'] = 1000 * int(parse_date(doc.get('lastModified')).strftime("%s"))
+    except Exception as e:
+        print("Skipped timestamp: Error %s" % e)
     res.update(Config.additions)
     if "text" in doc['contentType'] or "ml" in doc['contentType']: # for text content type
-        res['raw_data'] = get_raw_content(id.replace("file:", ""))
+        res['raw_content'] = get_raw_content(id.replace("file:", ""))
 
     # Map ids to CDR
     id = transform_edr2cdr_id(res.get("obj_id"))
@@ -276,6 +295,7 @@ def get_raw_content(path):
             print("Error reading %s :: %s" %(path, e))
     return None
 
+ 
 def parse_date(date_str, fmt=Solr.DT_FMT):
     """
     parses date string to date object
