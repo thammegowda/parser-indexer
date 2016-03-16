@@ -236,8 +236,8 @@ def transform_edr2cdr(doc):
     """
     id = doc['id']
     res = {}
-    res['edr_id'] = id
     metadata = {} # since ES can take nested json, we club all metadata keys from solr
+    metadata['edr_id'] = id
     for key, val in doc.items():
         if key in Config.mapping:
             res[Config.mapping[key]] = val
@@ -246,7 +246,7 @@ def transform_edr2cdr(doc):
         if match:
             metadata[match.group(1)] = val
         elif key not in Config.removals:
-            res[key] = val
+            metadata[key] = val     # move it to extracted metadata
     res['extracted_metadata'] = metadata
     res['obj_stored_url'] = id.replace(Config.dump_path, Config.mount_point)
     try:
@@ -257,10 +257,15 @@ def transform_edr2cdr(doc):
     if "text" in doc['contentType'] or "ml" in doc['contentType']: # for text content type
         res['raw_content'] = get_raw_content(id.replace("file:", ""))
 
+    if 'outlinks' in metadata:
+        metadata['obj_outlinks'] = metadata['outlinks']
+        del metadata['outlinks']
+    if 'outpaths' in metadata:
+        metadata['obj_children'] = transform_edr2cdr_id(metadata['outpaths'])
+        del metadata['outpaths']
     # Map ids to CDR
     id = transform_edr2cdr_id(res.get("obj_id"))
     res['obj_id'] = id
-    res['obj_children'] = transform_edr2cdr_id(res.get("obj_children"))
     res['obj_parent'] = transform_edr2cdr_id(res.get("obj_parent"))
 
     # res['crawl_data'] = None FIXME: these are not found in solr
@@ -323,8 +328,6 @@ class Config(object):
     mapping = {
         'id': 'obj_id',
         'parent_id': 'obj_parent',
-        'outlinks': 'obj_outlinks',
-        'outpaths': 'obj_children',
         'contentType': 'content_type',
         'content': 'extracted_text',
         'url': 'obj_original_url'
