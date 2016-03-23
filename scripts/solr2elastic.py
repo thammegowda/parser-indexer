@@ -50,12 +50,13 @@ from datetime import datetime
 import os.path
 import codecs
 from elasticsearch.helpers import BulkIndexError
-import traceback                    
-                    
+import traceback
+import json
 
 
 current_milli_time = lambda: int(round(time.time() * 1000))  # replacement for System.currentMillis() ;)
 
+TYPES_FILE = "../data/types.json"
 
 class Solr(object):
 
@@ -81,13 +82,18 @@ class Solr(object):
         if kwargs:
             for key in kwargs:
                 payload[key] = kwargs.get(key)
-
         resp = requests.get(self.query_url, params=payload)
         if resp.status_code == 200:
             return eval(resp.text)['response']['docs']
         else:
             print(resp.status_code)
             return None
+
+
+    def get_doc(self, id):
+        qry = "id:\"%s\"" % id
+        docs = self.query(query=qry, rows=1)
+        return docs[0] if docs else None
 
     def query_iterator(self, query='*:*', start=0, rows=20, limit=None, **kwargs):
         '''
@@ -206,7 +212,7 @@ class Solr2Elastic(object):
                     t1 = current_milli_time()
                     helpers.bulk(self.elastic, buffer)
                     print "ES Bulk Req took %d ms for %d docs" % (current_milli_time() - t1, len(buffer))
-                    
+
                 except BulkIndexError as e:
                     print("ERROR: %s" % e)
                 except Exception as e:
@@ -228,6 +234,28 @@ class Solr2Elastic(object):
         print("Done: %d" % count)
         return count
 
+
+def transform_type(value, exp_type):
+    act_type = type(value)
+    if exp_type == "string" or exp_type == 'date':
+        return (True, str(value))
+    if ((act_type == int or act_type == long) and exp_type == "long") or ((act_type == int or act_type == long or act_type == float) and exp_type == 'double'):
+        return (True, value)
+    if act_type != str:
+        value = str(value) # convert to string
+    if exp_type == 'long':
+        match = Config.long_type_pattern.match(value)
+        if match:
+            return (True, match.group(1))
+        else:
+            return (False, value)
+    elif exp_type == 'double':
+        matches = re.findall(Config.double_type, value)
+        if len(matches) == 1:
+            return (True, matches[0])
+        else:
+            return (False, value)
+
 def transform_edr2cdr(doc):
     """
     This function transforms EDR(aka Solr) doc to CDR (aka Elastic)
@@ -244,7 +272,16 @@ def transform_edr2cdr(doc):
             continue
         match = Config.md_pattern.match(key)
         if match:
-            metadata[match.group(1)] = val
+            newkey = match.group(1)
+            exp_type = Config.types.get(newkey)
+            if exp_type == 'long' or exp_type == 'double':
+                  (ok, val) = transform_type(val, exp_type)
+                  if ok: # Conversion okay
+                      metadata[newkey] = val
+                  else: # Not okay
+                      metadata["%s_str"%newkey] = val
+            else:
+                metadata[newkey] = val
         elif key not in Config.removals:
             metadata[key] = val     # move it to extracted metadata
     res['extracted_metadata'] = metadata
@@ -300,7 +337,7 @@ def get_raw_content(path):
             print("Error reading %s :: %s" %(path, e))
     return None
 
- 
+
 def parse_date(date_str, fmt=Solr.DT_FMT):
     """
     parses date string to date object
@@ -336,6 +373,10 @@ class Config(object):
     md_pattern = re.compile(r"(.*)_(ts?|ss?|ds?|bs?|fs?|is?|ls?)_md")
     dump_path = "file:/data2/USCWeaponsStatsGathering/nutch/full_dump/"
     mount_point = "http://imagecat.dyndns.org/weapons/alldata/"
+
+    types = json.load(open(TYPES_FILE))
+    long_type_pattern = re.compile(r"[^0-9\+\-]*([\+\-]?[0-9]+)[^0-9]*")
+    double_type = r"[-+]?\d*\.\d+|\d+"
 
 if __name__ == '__main__':
     parser = ArgumentParser(description="This program copies data from EDR(Solr) to CDR(Elastic)" +
