@@ -1,3 +1,5 @@
+NOTE : The project has been moved to USC Information retrieval and Data Science Group : https://github.com/USCDataScience/parser-indexer
+
 Nutch Tika Solr
 ================
 
